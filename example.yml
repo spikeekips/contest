@@ -1,0 +1,43 @@
+---
+vars:
+  .network_id: mitum contest; Sat 26 Dec 2020 05:29:13 AM KST
+  .genesis.privatekey: L5GTSKkRs9NPsXwYgACZdodNUJqCAWjz2BccuR4cAgxJumEZWjokmpr
+  .genesis.publickey: rcrd3KA2wWNhKdAP8rHRzfRmgp91oR9mqopckyXRmCvGmpu
+
+designs:
+  common: |
+    address: {{ setgetVar ".self.address" ( printf "%ssas" .self.alias ) }}
+    privatekey: {{ setgetVar ".self.privatekey" newKey }}
+    network-id: {{ .network_id }}
+    network:
+      bind: 0.0.0.0:54321
+      publish: {{ setgetVar ".self.network.publish" ( nodePublishAddr .self.alias "udp" "54321" ) }}
+      tls-insecure: true
+
+  genesis:
+    - type: suffrage_genesis_join
+      node: "{{ .nodes.no0.address }}"
+      publickey: "{{ with .nodes.no0.privatekey }}{{ .publickey }}{{ end }}"
+  
+  nodes:
+    no0:
+    no1:
+
+expects:
+  - condition: "{{ .nodes.no0.network.publish }}#tls_insecure"
+    actions:
+      - type: "showme"
+        nodes: [no0, no1, no2]
+        exec: [a, b, c]
+    registers:
+      - type: "findme"
+        assign: ".findme.hehehe"
+
+  - condition: "{{ .nodes.no1.network.publish }}#tls_insecure"
+    actions:
+      - type: "showme"
+        nodes: [no0, no1, no2]
+        exec: [a, b, c]
+    registers:
+      - type: "findme"
+        assign: ".findme.hihihi"
