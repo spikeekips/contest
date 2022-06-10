@@ -19,25 +19,23 @@ designs:
       node: "{{ .nodes.no0.address }}"
       publickey: "{{ with .nodes.no0.privatekey }}{{ .publickey }}{{ end }}"
   
-  nodes:
-    no0:
-    no1:
+  number-nodes: 4
 
 expects:
-  - condition: "{{ .nodes.no0.network.publish }}#tls_insecure"
-    actions:
-      - type: "showme"
-        nodes: [no0, no1, no2]
-        exec: [a, b, c]
+  - condition: |
+      {"msg": "contest ready"}
     registers:
-      - type: "findme"
-        assign: ".findme.hehehe"
+      - assign: ".findme.hehehe"
+    actions:
+      - type: "start-nodes"
+        args: [no0]
+        exit-code: 0
 
-  - condition: "{{ .nodes.no1.network.publish }}#tls_insecure"
-    actions:
-      - type: "showme"
-        nodes: [no0, no1, no2]
-        exec: [a, b, c]
+  - condition: |
+      {"msg": "findme"}
     registers:
-      - type: "findme"
-        assign: ".findme.hihihi"
+      - assign: ".findme.hihihi"
+    actions:
+      - type: "stop-nodes"
+        args: [no0, no1]
+        exit-code: 1

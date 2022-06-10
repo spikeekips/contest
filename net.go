@@ -16,7 +16,7 @@ var (
 	portassigned  []string
 )
 
-func NodePublishAddr(alias, network, defaultport string) string {
+func NodePublishAddr(alias, network, innerport string) string {
 	bindPortLock.Lock()
 	defer bindPortLock.Unlock()
 

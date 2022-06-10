@@ -1,6 +1,9 @@
 package contest
 
 import (
+	"fmt"
+	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -34,19 +37,76 @@ func (s Scenario) IsValid(b []byte) error {
 }
 
 type DesignsScenario struct {
-	Common  string                   `yaml:"common"`
-	Nodes   map[string]string        `yaml:"nodes"`
-	Genesis []map[string]interface{} `yaml:"genesis"`
+	Common      string                   `yaml:"common"`
+	NumberNodes *int                     `yaml:"number-nodes"`
+	Nodes       map[string]string        `yaml:"nodes"`
+	Genesis     []map[string]interface{} `yaml:"genesis"`
 }
 
 func (s DesignsScenario) IsValid(b []byte) error {
 	e := util.StringErrorFunc("invalid DesignsScenario")
 
-	if len(s.Nodes) < 1 {
+	if (s.NumberNodes == nil || *s.NumberNodes < 1) && len(s.Nodes) < 1 {
 		return e(nil, "empty nodes")
 	}
 
+	if len(s.Nodes) > 0 {
+		// NOTE check node alias format
+		for i := range s.Nodes {
+			if err := isValidNodeAliasFormat(i); err != nil {
+				return e(err, "")
+			}
+		}
+	}
+
 	return nil
+}
+
+func (s DesignsScenario) AllNodes() []string {
+	var num int
+
+	if s.NumberNodes != nil {
+		num = *s.NumberNodes
+	}
+
+	if num < 1 { // NOTE find number of nodes from s.Nodes
+		aliases := make([]string, len(s.Nodes))
+
+		var i int
+		for alias := range s.Nodes {
+			aliases[i] = alias
+			i++
+		}
+
+		sort.Slice(aliases, func(i, j int) bool {
+			var ni, nj int
+
+			if _, err := fmt.Sscanf(aliases[i], "no%d", &ni); err != nil {
+				return false
+			}
+
+			if _, err := fmt.Sscanf(aliases[j], "no%d", &nj); err != nil {
+				return false
+			}
+
+			return ni > nj
+		})
+
+		var n int
+		if _, err := fmt.Sscanf(aliases[0], "no%d", &n); err != nil {
+			panic(err)
+		}
+
+		num = n + 1
+	}
+
+	nodes := make([]string, num)
+
+	for i := range nodes {
+		nodes[i] = nodeAlias(i)
+	}
+
+	return nodes
 }
 
 type ExpectScenario struct {
@@ -103,9 +163,9 @@ func (s ExpectScenario) Compile(vars *Vars) (newexpect ExpectScenario, err error
 }
 
 type ActionScenario struct {
-	Type  string   `yaml:"type"`
-	Nodes []string `yaml:"nodes"`
-	Exec  []string `yaml:"exec"`
+	Type     string   `yaml:"type"`
+	Args     []string `yaml:"args"`
+	ExitCode *int     `yaml:"exit-code"`
 }
 
 func (s ActionScenario) IsValid([]byte) error {
@@ -114,8 +174,6 @@ func (s ActionScenario) IsValid([]byte) error {
 	switch {
 	case len(s.Type) < 1:
 		return e(nil, "empty type")
-	case len(s.Nodes) < 1:
-		return e(nil, "empty nodes")
 	}
 
 	// FIXME check type is known
@@ -126,17 +184,9 @@ func (s ActionScenario) IsValid([]byte) error {
 func (s ActionScenario) Compile(vars *Vars) (newaction ActionScenario, err error) {
 	newaction.Type = s.Type
 
-	newaction.Nodes = make([]string, len(s.Nodes))
-	for i := range s.Nodes {
-		newaction.Nodes[i], err = CompileTemplate(s.Nodes[i], vars, nil)
-		if err != nil {
-			return newaction, errors.Wrap(err, "")
-		}
-	}
-
-	newaction.Exec = make([]string, len(s.Exec))
-	for i := range s.Exec {
-		newaction.Exec[i], err = CompileTemplate(s.Exec[i], vars, nil)
+	newaction.Args = make([]string, len(s.Args))
+	for i := range s.Args {
+		newaction.Args[i], err = CompileTemplate(s.Args[i], vars, nil)
 		if err != nil {
 			return newaction, errors.Wrap(err, "")
 		}
@@ -154,8 +204,6 @@ func (s RegisterScenario) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid RegisterScenario")
 
 	switch {
-	case len(s.Type) < 1:
-		return e(nil, "empty type")
 	case len(s.Assign) < 1:
 		return e(nil, "empty assign")
 	case !strings.HasPrefix(s.Assign, "."):
@@ -178,4 +226,25 @@ func (s RegisterScenario) Compile(vars *Vars) (newregister RegisterScenario, err
 	}
 
 	return newregister, nil
+}
+
+var reNodeAlias = regexp.MustCompile(`^no\d+$`)
+
+func isValidNodeAliasFormat(s string) error {
+	e := util.StringErrorFunc("invalid node alias")
+
+	s = strings.TrimSpace(s)
+
+	switch {
+	case len(s) < 1:
+		return e(nil, "empty alias")
+	case !reNodeAlias.MatchString(s):
+		return e(nil, "wrong format")
+	default:
+		return nil
+	}
+}
+
+func nodeAlias(i int) string {
+	return fmt.Sprintf("no%d", i)
 }

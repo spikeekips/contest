@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/docker/api/types"
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	dockerClient "github.com/docker/docker/client"
@@ -17,10 +18,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-var (
-	ContainerLabel   = "mitum-contest"
-	DefaultNodeImage = "debian:testing-slim"
-)
+var ContainerLabel = "mitum-contest"
 
 var errContainerLogIgnore = util.NewError("failed to read container logs; ignored")
 
@@ -82,6 +80,27 @@ func ExistsImage(client *dockerClient.Client, image string) (bool, error) {
 	}
 
 	return len(i) > 0, nil
+}
+
+func PullImage(client *dockerClient.Client, image string) error {
+	r, err := client.ImagePull(
+		context.Background(),
+		image,
+		types.ImagePullOptions{},
+	)
+	if err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	defer func() {
+		_ = r.Close()
+	}()
+
+	if _, err = io.ReadAll(r); err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	return nil
 }
 
 func ReadContainerLogs(
@@ -153,4 +172,8 @@ func readContainerLogs(ctx context.Context, reader io.Reader, callback func(uint
 			callback(h[0], []byte(msg))
 		}
 	}
+}
+
+func ContainerName(alias string) string {
+	return fmt.Sprintf("%s-%s", ContainerLabel, alias)
 }

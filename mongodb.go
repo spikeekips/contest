@@ -102,12 +102,12 @@ func (db *Mongodb) InsertLogEntries(ctx context.Context, entries []LogEntry) err
 	return nil
 }
 
-func (db *Mongodb) Find(ctx context.Context, col string, query bson.M) (map[string]interface{}, bool, error) {
+func (db *Mongodb) Find(ctx context.Context, query bson.M) (map[string]interface{}, bool, error) {
 	option := options.FindOne()
 	option = option.SetSort(bson.D{{Key: "_id", Value: -1}})
 
 	var record map[string]interface{}
-	if r := db.db.Collection(col).FindOne(ctx, query, option); r.Err() != nil {
+	if r := db.db.Collection(mongodbColLogEntry).FindOne(ctx, query, option); r.Err() != nil {
 		if errors.Is(r.Err(), mongo.ErrNoDocuments) {
 			return nil, false, nil
 		}

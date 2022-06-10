@@ -7,10 +7,14 @@ replace github.com/spikeekips/mitum => /workspace/mitum/src
 require (
 	github.com/alecthomas/kong v0.5.0
 	github.com/docker/docker v20.10.17+incompatible
+	github.com/docker/go-connections v0.4.0
+	github.com/hpcloud/tail v1.0.0
 	github.com/pkg/errors v0.9.1
+	github.com/pkg/sftp v1.13.4
 	github.com/rs/zerolog v1.27.0
 	github.com/spikeekips/mitum v0.0.0-00010101000000-000000000000
 	go.mongodb.org/mongo-driver v1.9.1
+	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -30,7 +34,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
-	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/go-redis/redis/v8 v8.11.5 // indirect
@@ -49,6 +52,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.12 // indirect
+	github.com/kr/fs v0.1.0 // indirect
 	github.com/lucas-clemente/quic-go v0.27.1 // indirect
 	github.com/marten-seemann/qtls-go1-16 v0.1.5 // indirect
 	github.com/marten-seemann/qtls-go1-17 v0.1.1 // indirect
@@ -78,7 +82,6 @@ require (
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	github.com/zeebo/blake3 v0.2.3 // indirect
 	golang.org/x/arch v0.0.0-20220412001346-fc48f9fe4c15 // indirect
-	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3 // indirect
 	golang.org/x/net v0.0.0-20220526153639-5463443f8c37 // indirect
 	golang.org/x/sync v0.0.0-20220513210516-0976fa681c29 // indirect
@@ -86,6 +89,7 @@ require (
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/tools v0.1.10 // indirect
 	golang.org/x/xerrors v0.0.0-20220517211312-f3a8303e98df // indirect
+	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gotest.tools/v3 v3.2.0 // indirect
 )
