@@ -49,6 +49,31 @@ type NodeLogEntry struct {
 	stderr bool
 }
 
+func NewNodeLogEntryWithInterface(node string, stderr bool, i interface{}) (entry NodeLogEntry, _ error) {
+	var x bson.Raw
+
+	if i != nil {
+		switch t := i.(type) {
+		case []byte:
+			return NewNodeLogEntry(node, stderr, t)
+		default:
+			b, err := bson.Marshal(t)
+			if err != nil {
+				return entry, errors.Wrap(err, "")
+			}
+
+			x = b
+		}
+	}
+
+	return NodeLogEntry{
+		t:      localtime.UTCNow(),
+		node:   node,
+		x:      x,
+		stderr: stderr,
+	}, nil
+}
+
 func NewNodeLogEntry(node string, stderr bool, b []byte) (entry NodeLogEntry, _ error) {
 	var x bson.Raw
 

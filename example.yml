@@ -29,13 +29,6 @@ expects:
     actions:
       - type: "start-nodes"
         args: [no0]
-        exit-code: 0
 
   - condition: |
-      {"msg": "findme"}
-    registers:
-      - assign: ".findme.hihihi"
-    actions:
-      - type: "stop-nodes"
-        args: [no0, no1]
-        exit-code: 1
+      {"node": "no0", "x.exit_code": 1, "stderr": true}

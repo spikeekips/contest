@@ -163,9 +163,8 @@ func (s ExpectScenario) Compile(vars *Vars) (newexpect ExpectScenario, err error
 }
 
 type ActionScenario struct {
-	Type     string   `yaml:"type"`
-	Args     []string `yaml:"args"`
-	ExitCode *int     `yaml:"exit-code"`
+	Type string   `yaml:"type"`
+	Args []string `yaml:"args"`
 }
 
 func (s ActionScenario) IsValid([]byte) error {
