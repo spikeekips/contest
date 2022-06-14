@@ -2,18 +2,12 @@ package contest
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"net"
 	"net/url"
 	"os"
 	"strings"
-	"sync"
-	"time"
 
-	dockerTypes "github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/network"
 	dockerClient "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	"github.com/pkg/errors"
@@ -23,17 +17,24 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
-type RemoteDockerHost struct {
-	sync.RWMutex
-	addr           *url.URL
-	client         *dockerClient.Client
-	started        map[ /* container name */ string] /* container id */ string
-	stopped        map[ /* container name */ string] /* container id */ string
+var udpFreeportCmdF = `read FROM TO < /proc/sys/net/ipv4/ip_local_port_range
+		comm -23 \
+		<(seq "$FROM" "$TO" | sort) \
+		<(ss -Huan | awk '{print $4}' | cut -d':' -f2 | sort -u) | \
+		shuf | head -n 1`
+
+var tcpFreeportCmdF = `read FROM TO < /proc/sys/net/ipv4/ip_local_port_range
+		comm -23 \
+		<(seq "$FROM" "$TO" | sort) \
+		<(ss -Htan | awk '{print $4}' | cut -d':' -f2 | sort -u) | \
+		shuf | head -n 1`
+
+type RemoteHost struct {
+	*baseHost
 	savedsshclient *ssh.Client
-	portmaps       *util.LockedMap
 }
 
-func NewRemoteDockerHost(addr *url.URL) (*RemoteDockerHost, error) {
+func NewRemoteHost(addr *url.URL) (*RemoteHost, error) {
 	client, err := dockerClient.NewClientWithOpts(
 		dockerClient.WithHost(addr.String()),
 	)
@@ -41,108 +42,76 @@ func NewRemoteDockerHost(addr *url.URL) (*RemoteDockerHost, error) {
 		return nil, errors.Wrap(err, "")
 	}
 
-	// NOTE check ssh connection
-	return &RemoteDockerHost{
-		addr:     addr,
-		client:   client,
-		started:  map[string]string{},
-		stopped:  map[string]string{},
-		portmaps: util.NewLockedMap(),
-	}, nil
+	h := &RemoteHost{baseHost: newBaseHost(addr, client)}
+
+	if err := h.checkArch(); err != nil {
+		return nil, errors.Wrap(err, "")
+	}
+
+	return h, nil
 }
 
-func (h *RemoteDockerHost) Address() string {
-	return h.addr.String()
-}
+func (h *RemoteHost) checkArch() error {
+	e := util.StringErrorFunc("failed to check arch")
 
-func (h *RemoteDockerHost) Hostname() string {
-	return h.addr.Hostname()
-}
-
-func (h *RemoteDockerHost) Close() error {
-	e := util.StringErrorFunc("failed to close host")
-
-	l, err := h.client.ContainerList(context.Background(), dockerTypes.ContainerListOptions{All: true})
+	session, err := h.sshSession()
 	if err != nil {
 		return e(err, "")
 	}
+	defer func() {
+		_ = session.Close()
+	}()
 
-	var cids []string
-	for i := range l {
-		c := l[i]
+	var b bytes.Buffer
+	session.Stdout = &b
 
-		for j := range c.Names {
-			if strings.HasPrefix(c.Names[j], "/"+ContainerLabel) {
-				cids = append(cids, c.ID)
-			}
-		}
-	}
-
-	if len(cids) > 0 {
-		for i := range cids {
-			if err := h.client.ContainerStop(context.Background(), cids[i], nil); err != nil {
-				return e(err, "")
-			}
-		}
-	}
-
-	if err := h.client.Close(); err != nil {
+	if err := session.Run("uname -sm"); err != nil {
 		return e(err, "")
 	}
+
+	uname := strings.TrimSuffix(b.String(), "\n")
+
+	arch, found := supportedArchs[uname]
+	if !found {
+		return e(nil, "not supported arch, %q", uname)
+	}
+
+	h.arch = arch
 
 	return nil
 }
 
-func (h *RemoteDockerHost) ContainerFreePort(id, network, innerPort string) (string, error) {
-	var port string
-	if _, err := h.portmaps.Set(id, func(i interface{}) (interface{}, error) {
-		source, err := nat.NewPort(network, innerPort)
-		if err != nil {
-			return nil, err
-		}
-
-		if port, err = h.FreePort(network); err != nil {
-			return nil, err
-		}
-
-		var portmap nat.PortMap
-		switch {
-		case i == nil, util.IsNilLockedValue(i):
-			portmap = nat.PortMap{}
-		default:
-			portmap = i.(nat.PortMap)
-		}
-
-		portmap[source] = []nat.PortBinding{{HostPort: port}}
-
-		return portmap, nil
-	}); err != nil {
-		return port, errors.Wrap(err, "failed to get free port of node")
+func (h *RemoteHost) ContainerFreePort(id, network, innerPort string) (string, error) {
+	session, err := h.sshSession()
+	if err != nil {
+		return "", errors.Wrap(err, "")
 	}
 
-	return port, nil
+	defer func() {
+		_ = session.Close()
+	}()
+
+	return h.containerFreePort(id, network, innerPort, func(portmap nat.PortMap) (string, error) {
+		return h.freePort(session, network, portmap)
+	})
 }
 
-func (h *RemoteDockerHost) PortMap(id string) nat.PortMap {
-	i, _ := h.portmaps.Value(id)
-	if i == nil {
-		return nat.PortMap{}
-	}
-
-	return i.(nat.PortMap)
-}
-
-func (h *RemoteDockerHost) FreePort(network string) (string, error) {
+func (h *RemoteHost) FreePort(network string) (string, error) {
 	e := util.StringErrorFunc("failed to get free port")
 
 	session, err := h.sshSession()
 	if err != nil {
 		return "", e(err, "")
 	}
+
 	defer func() {
 		_ = session.Close()
 	}()
 
+	return h.freePort(session, network, nat.PortMap{})
+}
+
+func (h *RemoteHost) freePort(session *ssh.Session, network string, portmap nat.PortMap) (string, error) {
 	var bufstdout, bufstderr bytes.Buffer
 	session.Stdout = &bufstdout
 	session.Stderr = &bufstderr
@@ -154,26 +123,27 @@ func (h *RemoteDockerHost) FreePort(network string) (string, error) {
 	case "tcp":
 		cmd = tcpFreeportCmdF
 	default:
-		return "", e(nil, "unsupported network, %q", network)
+		return "", errors.Errorf("unsupported network, %q", network)
 	}
 
-	switch err := session.Run(cmd); {
-	case err != nil:
-		return "", e(err, "")
-	case len(bufstderr.Bytes()) > 0:
-		return "", e(nil, bufstderr.String())
-	case len(bufstdout.Bytes()) < 1:
-		return "", e(nil, "empty output")
-	default:
-		return strings.TrimSpace(bufstdout.String()), nil
-	}
+	return h.baseHost.freePort(network, portmap, func() (string, error) {
+		bufstdout.Reset()
+		bufstderr.Reset()
+
+		switch err := session.Run(cmd); {
+		case err != nil:
+			return "", errors.Wrap(err, "")
+		case len(bufstderr.Bytes()) > 0:
+			return "", errors.Errorf("stderr: %q", bufstderr.String())
+		case len(bufstdout.Bytes()) < 1:
+			return "", errors.Errorf("empty output")
+		default:
+			return strings.TrimSpace(bufstdout.String()), nil
+		}
+	})
 }
 
-func (h *RemoteDockerHost) Client() *dockerClient.Client {
-	return h.client
-}
-
-func (h *RemoteDockerHost) Upload(s io.Reader, dest string, mode os.FileMode) error {
+func (h *RemoteHost) Upload(s io.Reader, dest string, mode os.FileMode) error {
 	e := util.StringErrorFunc("failed to sftp")
 
 	client, err := h.sshClient()
@@ -193,7 +163,10 @@ func (h *RemoteDockerHost) Upload(s io.Reader, dest string, mode os.FileMode) er
 	if err != nil {
 		return e(err, "")
 	}
-	defer f.Close()
+
+	defer func() {
+		_ = f.Close()
+	}()
 
 	if _, err := f.ReadFrom(s); err != nil {
 		return e(err, "")
@@ -206,191 +179,7 @@ func (h *RemoteDockerHost) Upload(s io.Reader, dest string, mode os.FileMode) er
 	return nil
 }
 
-func (h *RemoteDockerHost) CreateContainer(
-	ctx context.Context,
-	config *container.Config,
-	hostConfig *container.HostConfig,
-	networkingConfig *network.NetworkingConfig,
-	name string,
-) error {
-	h.Lock()
-	defer h.Unlock()
-
-	_, err := h.createContainer(ctx, config, hostConfig, networkingConfig, name)
-
-	return err
-}
-
-func (h *RemoteDockerHost) createContainer(
-	ctx context.Context,
-	config *container.Config,
-	hostConfig *container.HostConfig,
-	networkingConfig *network.NetworkingConfig,
-	name string,
-) (string, error) {
-	e := util.StringErrorFunc("failed to create container")
-
-	cid, _, err := h.findContainer(ctx, name)
-	if err != nil {
-		return "", e(err, "")
-	}
-
-	if len(cid) < 1 {
-		r, err := h.client.ContainerCreate(
-			ctx,
-			config,
-			hostConfig,
-			networkingConfig,
-			nil,
-			name,
-		)
-		if err != nil {
-			return "", e(err, "")
-		}
-
-		cid = r.ID
-	}
-
-	h.stopped[name] = cid
-
-	return cid, nil
-}
-
-func (h *RemoteDockerHost) StartContainer(
-	ctx context.Context,
-	config *container.Config,
-	hostConfig *container.HostConfig,
-	networkingConfig *network.NetworkingConfig,
-	name string,
-	whenExit func(container.ContainerWaitOKBody, error),
-) error {
-	h.Lock()
-	defer h.Unlock()
-
-	e := util.StringErrorFunc("failed to start container")
-
-	cid, started, err := h.findContainer(ctx, name)
-	if err != nil {
-		return e(err, "")
-	}
-
-	if len(cid) < 1 {
-		id, err := h.createContainer(
-			ctx,
-			config,
-			hostConfig,
-			networkingConfig,
-			name,
-		)
-		if err != nil {
-			return e(err, "")
-		}
-
-		cid = id
-	}
-
-	if !started {
-		if err := h.client.ContainerStart(ctx, cid, dockerTypes.ContainerStartOptions{}); err != nil {
-			return e(err, "")
-		}
-	}
-
-	h.started[name] = cid
-	delete(h.stopped, name)
-
-	if whenExit != nil {
-		go func() {
-			bodych, errch := h.client.ContainerWait(ctx, cid, container.WaitConditionNotRunning)
-
-			select {
-			case err := <-errch:
-				whenExit(container.ContainerWaitOKBody{}, err)
-
-				return
-			case body := <-bodych:
-				whenExit(body, nil)
-
-				return
-			}
-		}()
-	}
-
-	return nil
-}
-
-func (h *RemoteDockerHost) StopContainer(ctx context.Context, name string, timeout *time.Duration) error {
-	e := util.StringErrorFunc("failed to stop container")
-
-	cid, started, err := h.findContainer(ctx, name)
-	if err != nil {
-		return e(err, "")
-	}
-
-	if started {
-		if err := h.client.ContainerStop(ctx, cid, timeout); err != nil {
-			return e(err, "")
-		}
-	}
-
-	h.stopped[name] = cid
-	delete(h.started, name)
-
-	return nil
-}
-
-func (h *RemoteDockerHost) RemoveContainer(ctx context.Context, name string, options dockerTypes.ContainerRemoveOptions) error {
-	e := util.StringErrorFunc("failed to remove container")
-
-	cid, started, err := h.findContainer(ctx, name)
-	if err != nil {
-		return e(err, "")
-	}
-
-	if len(cid) < 1 {
-		return e(util.ErrNotFound.Errorf("container not found"), "")
-	}
-
-	if started {
-		if err := h.client.ContainerStop(ctx, cid, nil); err != nil {
-			return e(err, "")
-		}
-	}
-
-	if err := h.client.ContainerRemove(ctx, cid, options); err != nil {
-		return e(err, "")
-	}
-
-	delete(h.stopped, name)
-	delete(h.started, name)
-
-	return nil
-}
-
-func (h *RemoteDockerHost) ContainerLogs(
-	ctx context.Context,
-	name string,
-	options dockerTypes.ContainerLogsOptions,
-) (io.ReadCloser, error) {
-	e := util.StringErrorFunc("failed container logs")
-
-	var cid string
-
-	switch id, found := h.stopped[name]; {
-	case found:
-		cid = id
-	default:
-		switch id, found := h.started[name]; {
-		case !found:
-			return nil, e(nil, "container not found")
-		default:
-			cid = id
-		}
-	}
-
-	return h.client.ContainerLogs(ctx, cid, options)
-}
-
-func (h *RemoteDockerHost) sshClient() (*ssh.Client, error) {
+func (h *RemoteHost) sshClient() (*ssh.Client, error) {
 	h.Lock()
 	defer h.Unlock()
 
@@ -429,7 +218,7 @@ func (h *RemoteDockerHost) sshClient() (*ssh.Client, error) {
 	return h.savedsshclient, nil
 }
 
-func (h *RemoteDockerHost) sshSession() (*ssh.Session, error) {
+func (h *RemoteHost) sshSession() (*ssh.Session, error) {
 	e := util.StringErrorFunc("failed to create ssh session")
 
 	client, err := h.sshClient()
@@ -443,28 +232,4 @@ func (h *RemoteDockerHost) sshSession() (*ssh.Session, error) {
 	}
 
 	return session, nil
-}
-
-func (h *RemoteDockerHost) findContainer(ctx context.Context, name string) (string, bool, error) {
-	l, err := h.client.ContainerList(ctx, dockerTypes.ContainerListOptions{All: true})
-	if err != nil {
-		return "", false, err
-	}
-
-	var cid string
-	var started bool
-
-	for i := range l {
-		c := l[i]
-
-		if util.InStringSlice("/"+name, c.Names) {
-			cid = c.ID
-
-			started = c.State == "running"
-
-			break
-		}
-	}
-
-	return cid, started, nil
 }

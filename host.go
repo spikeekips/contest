@@ -2,9 +2,10 @@ package contest
 
 import (
 	"context"
+	"debug/elf"
+	"fmt"
 	"io"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -13,114 +14,26 @@ import (
 	"github.com/docker/docker/api/types/network"
 	dockerClient "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
-	"github.com/pkg/errors"
 )
 
-var udpFreeportCmdF = `read FROM TO < /proc/sys/net/ipv4/ip_local_port_range
-		comm -23 \
-		<(seq "$FROM" "$TO" | sort) \
-		<(ss -Huan | awk '{print $4}' | cut -d':' -f2 | sort -u) | \
-		shuf | head -n 1`
-
-var tcpFreeportCmdF = `read FROM TO < /proc/sys/net/ipv4/ip_local_port_range
-		comm -23 \
-		<(seq "$FROM" "$TO" | sort) \
-		<(ss -Htan | awk '{print $4}' | cut -d':' -f2 | sort -u) | \
-		shuf | head -n 1`
-
-type Hosts struct {
-	sync.Mutex
-	hostids          []string
-	hosts            map[string]Host
-	hostsbycontainer map[string]Host
-	containersbyhost map[string][]string
-	lastused         int
+var supportedArchs = map[string]elf.Machine{
+	"Linux x86_64":  elf.EM_X86_64,
+	"Linux aarch64": elf.EM_AARCH64,
 }
 
-func NewHosts() *Hosts {
-	return &Hosts{
-		hosts:            map[string]Host{},
-		hostsbycontainer: map[string]Host{},
-		containersbyhost: map[string][]string{},
-		lastused:         -1,
-	}
-}
-
-func (h *Hosts) Close() error {
-	for i := range h.hosts {
-		if err := h.hosts[i].Close(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (h *Hosts) New(ho Host) error {
-	if _, found := h.hosts[ho.Address()]; found {
-		return errors.Errorf("already added")
-	}
-
-	h.hostids = append(h.hostids, ho.Address())
-	h.hosts[ho.Address()] = ho
-
-	return nil
-}
-
-func (h *Hosts) NewContainer(cid string) (Host, error) {
-	ho := h.findHost()
-	if ho == nil {
-		return nil, errors.Errorf("failed to find host")
-	}
-
-	h.hostsbycontainer[cid] = ho
-	h.containersbyhost[ho.Address()] = append(h.containersbyhost[ho.Address()], cid)
-
-	return ho, nil
-}
-
-func (h *Hosts) Host(hostaddress string) Host {
-	return h.hosts[hostaddress]
-}
-
-func (h *Hosts) HostByContainer(cid string) Host {
-	return h.hostsbycontainer[cid]
-}
-
-func (h *Hosts) TraverseByHost(f func(_ Host, cids []string) (bool, error)) error {
-	for addr := range h.containersbyhost {
-		ho := h.Host(addr)
-
-		switch keep, err := f(ho, h.containersbyhost[addr]); {
-		case err != nil:
-			return err
-		case !keep:
-			return nil
-		}
-	}
-
-	return nil
-}
-
-func (h *Hosts) findHost() Host {
-	h.Lock()
-	defer h.Unlock()
-
-	if len(h.hostids) < 1 {
-		return nil
-	}
-
-	index := h.lastused + 1
-	if index == len(h.hostids) {
-		index = 0
-	}
-
-	h.lastused = index
-
-	return h.hosts[h.hostids[index]]
+var supportedArchsStrings = map[elf.Machine]string{
+	elf.EM_386:     "linux/386",
+	elf.EM_X86_64:  "linux/amd64",
+	elf.EM_ARM:     "linux/arm",
+	elf.EM_AARCH64: "linux/arm64",
+	elf.EM_MIPS:    "linux/mips",
+	elf.EM_PPC64:   "linux/ppc64",
+	elf.EM_RISCV:   "linux/riscv64",
+	elf.EM_S390:    "linux/s390x",
 }
 
 type Host interface {
+	Arch() elf.Machine
 	Address() string
 	Hostname() string
 	Close() error
@@ -147,4 +60,19 @@ type Host interface {
 	ContainerLogs(_ context.Context, containerName string, _ types.ContainerLogsOptions) (io.ReadCloser, error)
 	PortMap(string) nat.PortMap
 	FreePort(string) (string, error)
+}
+
+func MachineToString(m elf.Machine) string {
+	s, found := supportedArchsStrings[m]
+	if !found {
+		return fmt.Sprintf("unknown, %q", m)
+	}
+
+	return s
+}
+
+type Artifact struct {
+	Source   []byte
+	Target   string
+	FileMode os.FileMode
 }

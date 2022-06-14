@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"debug/elf"
 	"fmt"
 	"io"
 	"net/url"
@@ -31,24 +32,22 @@ var (
 	DefaultRedisImage = "redis:latest"
 )
 
-var (
-	defaultMongodbURI = "mongodb://localhost:27017/contest_" + contestID
-	defaultDockerHost = &url.URL{Host: "local"}
-)
+var defaultMongodbURI = "mongodb://localhost:27017/contest_" + contestID
 
 type runCommand struct {
-	BaseDir  string     `arg:"" name:"base_directory" help:"base directory"`
-	Scenario string     `arg:"" name:"scenario" help:"scenario file" type:"existingfile"`
-	Exec     string     `arg:"" name:"node executable" help:"node executable file" type:"existingfile"`
-	Hosts    []*url.URL `arg:"" name:"host" help:"docker host"`
-	Mongodb  string     `name:"mongodb" help:"mongodb uri" default:"${mongodb_uri}"`
-	db       *contest.Mongodb
-	id       string
-	basedir  string
-	scenario contest.Scenario
-	vars     *contest.Vars
-	hosts    *contest.Hosts
-	logch    chan contest.LogEntry
+	BaseDir      string     `arg:"" name:"base_directory" help:"base directory"`
+	Scenario     string     `arg:"" name:"scenario" help:"scenario file" type:"existingfile"`
+	NodeBinaries []string   `name:"node-binary" help:"node binary files by architecture"`
+	Hosts        []*url.URL `arg:"" name:"host" help:"docker host"`
+	Mongodb      string     `name:"mongodb" help:"mongodb uri" default:"${mongodb_uri}"`
+	db           *contest.Mongodb
+	id           string
+	basedir      string
+	scenario     contest.Scenario
+	vars         *contest.Vars
+	hosts        *contest.Hosts
+	logch        chan contest.LogEntry
+	nodeBinaries map[elf.Machine]string
 }
 
 func (cmd *runCommand) Run() error {
@@ -135,17 +134,41 @@ func (cmd *runCommand) prepare() error {
 }
 
 func (cmd *runCommand) prepareFlags() error {
+	if len(cmd.NodeBinaries) < 1 {
+		return errors.Errorf("empty node binaries")
+	}
+
+	cmd.nodeBinaries = map[elf.Machine]string{}
+	for i := range cmd.NodeBinaries {
+		p := cmd.NodeBinaries[i]
+
+		switch f, err := elf.Open(p); {
+		case err != nil:
+			return errors.Wrap(err, "something wrong node binaries")
+		case f.FileHeader.OSABI != elf.ELFOSABI_LINUX && f.FileHeader.OSABI != elf.ELFOSABI_NONE:
+			return errors.Errorf("not supported os, %q", f.FileHeader.OSABI)
+		default:
+			if _, found := cmd.nodeBinaries[f.FileHeader.Machine]; found {
+				return errors.Errorf("duplicated arch found, %s(%s)",
+					p, contest.MachineToString(f.FileHeader.Machine))
+			}
+
+			cmd.nodeBinaries[f.FileHeader.Machine] = p
+		}
+	}
+
 	switch {
 	case len(cmd.Hosts) < 1:
-		cmd.Hosts = []*url.URL{defaultDockerHost}
+		cmd.Hosts = []*url.URL{contest.DefaultLocalHostURI}
 	default:
 		e := util.StringErrorFunc("invalid docker host")
 		for i := range cmd.Hosts {
 			switch h := cmd.Hosts[i]; {
-			case h.Scheme != "tcp":
-				return e(nil, "scheme is not tcp, %q", h)
+			case h.String() == "localhost", strings.HasPrefix(h.String(), "127.0."):
 			case len(h.Host) < 1:
 				return e(nil, "empty host")
+			case h.Scheme != "tcp":
+				return e(nil, "scheme is not tcp, %q", h)
 			case len(h.Port()) < 1:
 				h.Host = fmt.Sprintf("%s:2376", h.Host)
 			}
@@ -174,11 +197,30 @@ func (cmd *runCommand) prepareHosts() error {
 	cmd.hosts = contest.NewHosts()
 
 	for i := range cmd.Hosts {
-		uri := cmd.Hosts[i]
+		h := cmd.Hosts[i]
 
-		host, err := contest.NewRemoteDockerHost(uri)
-		if err != nil {
-			return e(err, "")
+		var host contest.Host
+		switch {
+		case h.String() == "localhost", strings.HasPrefix(h.String(), "127.0"),
+			h.Hostname() == "localhost", strings.HasPrefix(h.Hostname(), "127.0"):
+			i, err := contest.NewLocalHost()
+			if err != nil {
+				return e(err, "")
+			}
+
+			host = i
+		default:
+			i, err := contest.NewRemoteHost(h)
+			if err != nil {
+				return e(err, "")
+			}
+
+			host = i
+		}
+
+		if _, found := cmd.nodeBinaries[host.Arch()]; !found {
+			return e(nil, "node binary does not support target host arch, %q",
+				contest.MachineToString(host.Arch()))
 		}
 
 		if err := cmd.checkImages(host.Client(), DefaultNodeImage, DefaultRedisImage); err != nil {
@@ -293,6 +335,10 @@ func (cmd *runCommand) prepareScenario() error {
 
 	// NOTE nodes design
 	designs := map[string]string{}
+
+	if _, err := cmd.hosts.NewContainer(contest.ContainerName("redis")); err != nil {
+		return e(err, "")
+	}
 
 	nodes := cmd.scenario.Designs.AllNodes()
 
