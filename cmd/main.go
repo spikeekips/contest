@@ -4,7 +4,6 @@ import (
 	"os"
 
 	"github.com/alecthomas/kong"
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	_ "github.com/spikeekips/mitum/launch"
 	mitumlogging "github.com/spikeekips/mitum/util/logging"
@@ -23,23 +22,29 @@ var kongOptions = []kong.Option{
 }
 
 func main() {
-	logging = mitumlogging.Setup(os.Stderr, zerolog.DebugLevel, "json", false)
-	log = mitumlogging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
-		return lctx.Str("module", "main")
-	}).SetLogging(logging).Log()
-
 	var cli struct {
+		Logging struct {
+			Level      LogLevel `name:"level" default:"debug" help:"log level: {${enum}}" group:"logging"`
+			Type       string   `enum:"json, terminal" default:"terminal" help:"log format: {${enum}}" group:"logging"`
+			Out        string   `enum:"stdout, stderr, <file>" default:"stderr" help:"log output file: {${enum}}" group:"logging"`
+			ForceColor bool     `name:"force-color" negatable:"" help:"log force color" group:"logging"`
+		} `embed:"" prefix:"log."`
 		Run runCommand `cmd:"" help:"run contest"`
 	}
 
 	kctx := kong.Parse(&cli, kongOptions...)
 
-	log.Info().Str("command", kctx.Command()).Msg("start command")
+	logging = mitumlogging.Setup(os.Stderr, cli.Logging.Level.level, cli.Logging.Type, cli.Logging.ForceColor)
+	log = mitumlogging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
+		return lctx.Str("module", "main")
+	}).SetLogging(logging).Log()
+
+	log.Debug().Str("command", kctx.Command()).Msg("start command")
 
 	if err := func() error {
 		defer log.Info().Msg("stopped")
 
-		return errors.Wrap(kctx.Run(), "")
+		return kctx.Run()
 	}(); err != nil {
 		log.Error().Err(err).Msg("stopped by error")
 

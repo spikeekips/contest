@@ -6,7 +6,7 @@ import (
 	"debug/elf"
 	"fmt"
 	"io"
-	"net/url"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +14,7 @@ import (
 
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	dockerMount "github.com/docker/docker/api/types/mount"
 	dockerClient "github.com/docker/docker/client"
 	dockerstdcopy "github.com/docker/docker/pkg/stdcopy"
 	"github.com/nxadm/tail"
@@ -35,19 +36,20 @@ var (
 var defaultMongodbURI = "mongodb://localhost:27017/contest_" + contestID
 
 type runCommand struct {
-	BaseDir      string     `arg:"" name:"base_directory" help:"base directory"`
-	Scenario     string     `arg:"" name:"scenario" help:"scenario file" type:"existingfile"`
-	NodeBinaries []string   `name:"node-binary" help:"node binary files by architecture"`
-	Hosts        []*url.URL `arg:"" name:"host" help:"docker host"`
-	Mongodb      string     `name:"mongodb" help:"mongodb uri" default:"${mongodb_uri}"`
+	BaseDir      string        `arg:"" name:"base_directory" help:"base directory"`
+	Scenario     string        `arg:"" name:"scenario" help:"scenario file" type:"existingfile"`
+	Hosts        []HostFlag    `arg:"" name:"host" help:"docker host"`
+	NodeBinaries []string      `name:"node-binary" help:"node binary files by architecture"`
+	Mongodb      string        `name:"mongodb" help:"mongodb uri" default:"${mongodb_uri}"`
+	Timeout      time.Duration `name:"timeout" help:"stop after timeout"`
 	db           *contest.Mongodb
-	id           string
 	basedir      string
-	scenario     contest.Scenario
+	design       contest.Design
 	vars         *contest.Vars
 	hosts        *contest.Hosts
 	logch        chan contest.LogEntry
 	nodeBinaries map[elf.Machine]string
+	exitch       chan error
 }
 
 func (cmd *runCommand) Run() error {
@@ -58,18 +60,18 @@ func (cmd *runCommand) Run() error {
 		return errors.Wrap(err, "")
 	}
 
-	exitch := make(chan error)
+	cmd.exitch = make(chan error)
 
 	if err := cmd.hosts.TraverseByHost(func(h contest.Host, _ []string) (bool, error) {
 		if err := cmd.startRedisContainer(ctx, h, func(body container.ContainerWaitOKBody, err error) {
 			if err != nil {
-				exitch <- err
+				cmd.exitch <- err
 
 				return
 			}
 
 			if body.Error != nil {
-				exitch <- errors.Errorf(body.Error.Message)
+				cmd.exitch <- errors.Errorf(body.Error.Message)
 			}
 		}); err != nil {
 			return false, err
@@ -81,27 +83,79 @@ func (cmd *runCommand) Run() error {
 	}
 
 	defer func() {
-		if cmd.hosts != nil {
-			_ = cmd.hosts.Close()
+		err := cmd.closeHosts()
+		if err != nil {
+			log.Error().Err(err).Msg("failed to close hosts")
 		}
 	}()
 
 	cmd.logch = make(chan contest.LogEntry)
-	defer close(cmd.logch)
 
 	go cmd.saveLogs(ctx, cmd.logch)
 
 	go func() {
-		exitch <- cmd.watchLogs(ctx)
+		cmd.exitch <- cmd.watchLogs(ctx)
 	}()
 
 	cmd.logch <- contest.NewInternalLogEntry("contest ready", nil)
 
-	err := <-exitch
-	if err != nil {
+	select {
+	case <-func() <-chan time.Time {
+		if cmd.Timeout < 1 {
+			return nil
+		}
+
+		return time.After(cmd.Timeout)
+	}():
 		cancel()
 
-		return err
+		log.Debug().Dur("timeout", cmd.Timeout).Msg("contest will be stopped by timeout")
+
+		return errors.Errorf("timeout after %s", cmd.Timeout)
+	case err := <-cmd.exitch:
+		cancel()
+
+		log.Debug().Err(err).Msg("contest will be stopped by exit chan")
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (cmd *runCommand) closeHosts() error {
+	log.Debug().Msg("trying to close hosts")
+	defer log.Debug().Msg("hosts closed")
+
+	switch {
+	case cmd.hosts == nil:
+		return nil
+	case cmd.hosts.Len() == 1:
+		if err := cmd.hosts.Close(); err != nil {
+			return errors.Wrap(err, "")
+		}
+	}
+
+	jobch := make(chan util.ContextWorkerCallback)
+
+	go func() {
+		_ = cmd.hosts.Traverse(func(host contest.Host) (bool, error) {
+			jobch <- func(context.Context, uint64) error {
+				_ = host.Close()
+
+				return nil
+			}
+
+			return true, nil
+		})
+
+		close(jobch)
+	}()
+
+	if err := util.RunErrgroupWorkerByChan(context.Background(), int64(cmd.hosts.Len()), jobch); err != nil {
+		return errors.Wrap(err, "")
 	}
 
 	return nil
@@ -112,15 +166,15 @@ func (cmd *runCommand) prepare() error {
 		return errors.Wrap(err, "")
 	}
 
-	if err := cmd.prepareHosts(); err != nil {
-		return errors.Wrap(err, "")
-	}
-
 	if err := cmd.prepareLogs(); err != nil {
 		return errors.Wrap(err, "")
 	}
 
 	if err := cmd.prepareBase(); err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	if err := cmd.prepareHosts(); err != nil {
 		return errors.Wrap(err, "")
 	}
 
@@ -157,36 +211,15 @@ func (cmd *runCommand) prepareFlags() error {
 		}
 	}
 
-	switch {
-	case len(cmd.Hosts) < 1:
-		cmd.Hosts = []*url.URL{contest.DefaultLocalHostURI}
-	default:
-		e := util.StringErrorFunc("invalid docker host")
-		for i := range cmd.Hosts {
-			switch h := cmd.Hosts[i]; {
-			case h.String() == "localhost", strings.HasPrefix(h.String(), "127.0."):
-			case len(h.Host) < 1:
-				return e(nil, "empty host")
-			case h.Scheme != "tcp":
-				return e(nil, "scheme is not tcp, %q", h)
-			case len(h.Port()) < 1:
-				h.Host = fmt.Sprintf("%s:2376", h.Host)
-			}
-		}
+	if len(cmd.Hosts) < 1 {
+		return errors.Errorf("empty host")
 	}
 
-	log.Debug().
-		Str("id", contestID).
-		Str("basedir", cmd.BaseDir).
-		Func(func(e *zerolog.Event) {
-			hosts := make([]fmt.Stringer, len(cmd.Hosts))
-			for i := range cmd.Hosts {
-				hosts[i] = cmd.Hosts[i]
-			}
-
-			e.Stringers("hosts", hosts)
-		}).
-		Msg("flags")
+	log.Debug().Str("id", contestID).Str("basedir", cmd.BaseDir).Func(func(e *zerolog.Event) {
+		for i := range cmd.Hosts {
+			e.Object("host", cmd.Hosts[i])
+		}
+	}).Msg("flags")
 
 	return nil
 }
@@ -201,16 +234,15 @@ func (cmd *runCommand) prepareHosts() error {
 
 		var host contest.Host
 		switch {
-		case h.String() == "localhost", strings.HasPrefix(h.String(), "127.0"),
-			h.Hostname() == "localhost", strings.HasPrefix(h.Hostname(), "127.0"):
-			i, err := contest.NewLocalHost()
+		case h.host == "localhost":
+			i, err := contest.NewLocalHost(h.base, h.dockerhost)
 			if err != nil {
 				return e(err, "")
 			}
 
 			host = i
 		default:
-			i, err := contest.NewRemoteHost(h)
+			i, err := contest.NewRemoteHost(filepath.Join(h.base, contestID), h.dockerhost)
 			if err != nil {
 				return e(err, "")
 			}
@@ -218,26 +250,121 @@ func (cmd *runCommand) prepareHosts() error {
 			host = i
 		}
 
-		if _, found := cmd.nodeBinaries[host.Arch()]; !found {
-			return e(nil, "node binary does not support target host arch, %q",
-				contest.MachineToString(host.Arch()))
-		}
-
-		if err := cmd.checkImages(host.Client(), DefaultNodeImage, DefaultRedisImage); err != nil {
-			return e(err, "")
-		}
-
-		if _, err := host.FreePort("tcp"); err != nil {
-			return e(err, "")
-		}
-
-		if _, err := host.FreePort("udp"); err != nil {
-			return e(err, "")
-		}
-
 		if err := cmd.hosts.New(host); err != nil {
 			return e(err, "")
 		}
+	}
+
+	if err := cmd.checkLocalPublishHost(); err != nil {
+		return e(err, "")
+	}
+
+	jobch := make(chan util.ContextWorkerCallback)
+
+	go func() {
+		_ = cmd.hosts.Traverse(func(host contest.Host) (bool, error) {
+			jobch <- func(ctx context.Context, _ uint64) error {
+				if err := cmd.prepareBinaries(host); err != nil {
+					return err
+				}
+
+				return nil
+			}
+
+			jobch <- func(ctx context.Context, _ uint64) error {
+				if err := cmd.checkImages(host.Client(), DefaultNodeImage, DefaultRedisImage); err != nil {
+					return err
+				}
+
+				return nil
+			}
+
+			jobch <- func(ctx context.Context, _ uint64) error {
+				if _, err := host.FreePort("tcp"); err != nil {
+					return err
+				}
+
+				if _, err := host.FreePort("udp"); err != nil {
+					return err
+				}
+
+				return nil
+			}
+
+			return true, nil
+		})
+
+		close(jobch)
+	}()
+
+	if err := util.RunErrgroupWorkerByChan(context.Background(), int64(cmd.hosts.Len()), jobch); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (cmd *runCommand) checkLocalPublishHost() error {
+	var locals []contest.Host
+
+	_ = cmd.hosts.Traverse(func(host contest.Host) (bool, error) {
+		if host.Hostname() == "localhost" {
+			locals = append(locals, host)
+		}
+
+		return true, nil
+	})
+
+	if len(locals) < 1 {
+		return nil
+	}
+
+	var remoteside netip.Addr
+
+	_ = cmd.hosts.Traverse(func(host contest.Host) (bool, error) {
+		if host.Hostname() == "localhost" {
+			return true, nil
+		}
+
+		addr, err := host.(*contest.RemoteHost).LocalAddr()
+		if err != nil {
+			return false, errors.Wrap(err, "")
+		}
+
+		switch {
+		case !remoteside.IsValid():
+			remoteside = addr
+		case remoteside.IsLoopback(), remoteside.IsPrivate():
+			remoteside = addr
+		}
+
+		return true, nil
+	})
+
+	if remoteside.IsValid() {
+		for i := range locals {
+			locals[i].(*contest.LocalHost).SetPublishHost(remoteside.String())
+		}
+	}
+
+	return nil
+}
+
+func (cmd *runCommand) prepareBinaries(host contest.Host) error {
+	j, found := cmd.nodeBinaries[host.Arch()]
+	if !found {
+		return errors.Errorf("node binary does not support target host arch, %q",
+			contest.MachineToString(host.Arch()))
+	}
+
+	f, _ := os.Open(j)
+
+	defer func() {
+		_ = f.Close()
+	}()
+
+	if err := host.Upload(f, "node-binary", 0o700); err != nil {
+		return errors.Wrap(err, "failed to upload node binary")
 	}
 
 	return nil
@@ -278,6 +405,15 @@ func (cmd *runCommand) prepareBase() error {
 		cmd.basedir = abs
 	}
 
+	for i := range cmd.Hosts {
+		h := cmd.Hosts[i]
+
+		if h.host == "localhost" && len(h.base) < 1 {
+			h.base = cmd.basedir
+			cmd.Hosts[i] = h
+		}
+	}
+
 	return nil
 }
 
@@ -302,65 +438,66 @@ func (cmd *runCommand) prepareScenario() error {
 
 	log.Debug().Str("content", string(i)).Msg("scenario")
 
-	if err := yaml.Unmarshal([]byte(i), &cmd.scenario); err != nil {
+	if err := yaml.Unmarshal([]byte(i), &cmd.design); err != nil {
 		return e(err, "")
 	}
 
-	if err := cmd.scenario.IsValid(nil); err != nil {
+	if err := cmd.design.IsValid(nil); err != nil {
 		return e(err, "")
 	}
 
-	log.Debug().Interface("scenario", cmd.scenario).Msg("scenario loaded")
+	log.Debug().Interface("scenario", cmd.design).Msg("scenario loaded")
 
 	vars := contest.NewVars(nil)
 
 	// NOTE global vars
-	for k := range cmd.scenario.Vars {
-		vars.Set(k, cmd.scenario.Vars[k])
+	for k := range cmd.design.Vars {
+		vars.Set(k, cmd.design.Vars[k])
 	}
 
-	vars = vars.AddFunc("nodePublishAddr", func(alias, network, innerport string) string {
-		host := cmd.hosts.HostByContainer(contest.ContainerName(alias))
+	vars = vars.AddFunc("nodePublishAddr", func(host contest.Host, id, network, innerport string) string {
 		if host == nil {
 			return "<no value>"
 		}
 
-		port, err := host.ContainerFreePort(contest.ContainerName(alias), network, innerport)
+		port, err := host.ContainerFreePort(containerName(id), network, innerport)
 		if err != nil {
 			return "<no value>"
 		}
 
-		return host.Hostname() + ":" + port
+		return host.PublishHost() + ":" + port
 	})
 
 	// NOTE nodes design
 	designs := map[string]string{}
 
-	if _, err := cmd.hosts.NewContainer(contest.ContainerName("redis")); err != nil {
+	if _, err := cmd.hosts.NewContainer(containerName("redis")); err != nil {
 		return e(err, "")
 	}
 
-	nodes := cmd.scenario.Designs.AllNodes()
+	nodes := cmd.design.NodeDesigns.AllNodes()
 
 	for i := range nodes {
 		alias := nodes[i]
 
-		extra := map[string]interface{}{
-			"self": map[string]interface{}{
-				"alias": alias,
-			},
-		}
-
-		if _, err := cmd.hosts.NewContainer(contest.ContainerName(alias)); err != nil {
+		host, err := cmd.hosts.NewContainer(containerName(alias))
+		if err != nil {
 			return e(err, "")
 		}
 
-		bc, err := contest.CompileTemplate(cmd.scenario.Designs.Common, vars, extra)
+		extra := map[string]interface{}{
+			"self": map[string]interface{}{
+				"alias": alias,
+				"host":  host,
+			},
+		}
+
+		bc, err := contest.CompileTemplate(cmd.design.NodeDesigns.Common, vars, extra)
 		if err != nil {
 			return e(err, "failed to compile common design for %s", alias)
 		}
 
-		bn, err := contest.CompileTemplate(cmd.scenario.Designs.Nodes[alias], vars, extra)
+		bn, err := contest.CompileTemplate(cmd.design.NodeDesigns.Nodes[alias], vars, extra)
 		if err != nil {
 			return e(err, "failed to compile node design for %s", alias)
 		}
@@ -372,8 +509,27 @@ func (cmd *runCommand) prepareScenario() error {
 		log.Debug().Str("node", alias).Interface("design", designs[alias]).Msg("node design generated")
 	}
 
+	genesis, err := contest.CompileTemplate(cmd.design.NodeDesigns.Genesis, vars, nil)
+	if err != nil {
+		return e(err, "failed to compile genesis design")
+	}
+
+	if err := cmd.hosts.TraverseByHost(func(h contest.Host, _ []string) (bool, error) {
+		if err := h.Upload(
+			bytes.NewBuffer([]byte(genesis)),
+			"genesis.yml",
+			0o600,
+		); err != nil {
+			return false, e(err, "")
+		}
+
+		return true, nil
+	}); err != nil {
+		return e(err, "failed to upload genesis.yml")
+	}
+
 	for alias := range designs {
-		host := cmd.hosts.HostByContainer(contest.ContainerName(alias))
+		host := cmd.hosts.HostByContainer(containerName(alias))
 		if host == nil {
 			return e(nil, "not found in host")
 		}
@@ -398,13 +554,21 @@ func (cmd *runCommand) prepareScenario() error {
 			return e(err, "")
 		}
 
+		if err := host.Mkdir(
+			alias,
+			0o700,
+		); err != nil {
+			return e(err, "")
+		}
+
 		if err := host.Upload(
 			bytes.NewBuffer([]byte(designs[alias])),
-			filepath.Join("/tmp", alias+".yml"),
+			filepath.Join(alias, "config.yml"),
 			0o600,
 		); err != nil {
 			return e(err, "")
 		}
+
 	}
 
 	cmd.vars = vars
@@ -413,8 +577,8 @@ func (cmd *runCommand) prepareScenario() error {
 }
 
 func (cmd *runCommand) watchLogs(ctx context.Context) error {
-	expects := make([]contest.ExpectScenario, len(cmd.scenario.Expects))
-	copy(expects, cmd.scenario.Expects)
+	expects := make([]contest.ExpectScenario, len(cmd.design.Expects))
+	copy(expects, cmd.design.Expects)
 
 	var active contest.ExpectScenario
 
@@ -523,15 +687,27 @@ func (cmd *runCommand) evaluateLog(ctx context.Context, expect contest.ExpectSce
 }
 
 func (cmd *runCommand) register(
-	record map[string]interface{}, register contest.RegisterScenario,
+	record map[string]interface{}, register contest.ScenarioRegister,
 ) error {
 	cmd.vars.Set(register.Assign, record)
 
 	return nil
 }
 
-func (cmd *runCommand) action(ctx context.Context, action contest.ActionScenario) error {
+func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction) error {
 	switch action.Type {
+	case "init-nodes":
+		if len(action.Args) < 1 {
+			return errors.Errorf("empty nodes")
+		}
+
+		for i := range action.Args {
+			alias := action.Args[i]
+
+			if err := cmd.initNode(ctx, alias); err != nil {
+				return errors.Wrapf(err, "failed to init node, %q", alias)
+			}
+		}
 	case "start-nodes":
 		if len(action.Args) < 1 {
 			return errors.Errorf("empty nodes")
@@ -619,11 +795,7 @@ func (cmd *runCommand) startRedisContainer(
 ) error {
 	e := util.StringErrorFunc("failed to start container")
 
-	if _, err := h.ContainerFreePort("redis", "tcp", "6379"); err != nil {
-		return e(err, "")
-	}
-
-	name := contest.ContainerName("redis")
+	name := containerName("redis")
 
 	if err := h.RemoveContainer(ctx, name, dockerTypes.ContainerRemoveOptions{
 		RemoveVolumes: true,
@@ -634,29 +806,26 @@ func (cmd *runCommand) startRedisContainer(
 		}
 	}
 
-	if err := h.StartContainer(
-		ctx,
-		&container.Config{
-			Hostname: name,
-			Image:    DefaultRedisImage,
-		},
-		&container.HostConfig{
-			PortBindings: h.PortMap("redis"),
-		},
-		nil,
-		name,
-		whenExit,
-	); err != nil {
+	config := &container.Config{
+		Hostname: name,
+		Image:    DefaultRedisImage,
+	}
+
+	if err := h.CreateContainer(ctx, config, nil, nil, name); err != nil {
+		return e(err, "")
+	}
+
+	if err := h.StartContainer(ctx, config, nil, nil, name, whenExit); err != nil {
 		return e(err, "")
 	}
 
 	return nil
 }
 
-func (cmd *runCommand) startNode(ctx context.Context, alias string) error {
-	e := util.StringErrorFunc("failed to start node")
+func (cmd *runCommand) initNode(ctx context.Context, alias string) error {
+	e := util.StringErrorFunc("failed to init node")
 
-	name := contest.ContainerName(alias)
+	name := containerName(alias)
 
 	host := cmd.hosts.HostByContainer(name)
 	if host == nil {
@@ -672,17 +841,125 @@ func (cmd *runCommand) startNode(ctx context.Context, alias string) error {
 		}
 	}
 
-	config := &container.Config{
-		Hostname:     name,
-		Image:        DefaultNodeImage,
-		AttachStdout: true,
-		AttachStderr: true,
-		Cmd:          []string{"bash", "-c", "n=0; while :; do [ $n -gt 10 ] && exit 1; date; sleep 1; n=$(expr $n + 1); done"}, // FIXME
+	config, hostconfig := cmd.nodeContainerConfigs(alias, host)
+	config.Cmd = []string{"/node-binary", "init", "config.yml", "genesis.yml"}
+	hostconfig.Mounts = append(hostconfig.Mounts, dockerMount.Mount{
+		Type:   dockerMount.TypeBind,
+		Source: filepath.Join(host.Base(), "genesis.yml"),
+		Target: "/data/genesis.yml",
+	})
+
+	if err := host.CreateContainer(ctx, config, hostconfig, nil, name); err != nil {
+		return e(err, "")
 	}
 
-	hostconfig := &container.HostConfig{
-		PortBindings: host.PortMap(name),
+	if err := host.StartContainer(
+		ctx,
+		config,
+		hostconfig,
+		nil,
+		name,
+		func(body container.ContainerWaitOKBody, err error) {
+			if ctx.Err() != nil && errors.Is(err, context.Canceled) {
+				return
+			}
+
+			l := log.With().Stringer("logid", util.UUID()).Logger()
+
+			l.Err(err).Interface("body", body).
+				Str("alias", alias).
+				Str("container", name).
+				Msg("container stopped")
+
+			if !cmd.design.IgnoreWhenAbnormalContainerExit {
+				var exiterr error
+
+				switch {
+				case err != nil:
+					exiterr = err
+				case body.StatusCode != 0:
+					var errmsg string
+					if body.Error != nil {
+						errmsg = body.Error.Message + "; "
+					}
+
+					exiterr = errors.Errorf("%sexit=%d", errmsg, body.StatusCode)
+				}
+
+				if exiterr != nil {
+					cmd.exitch <- exiterr
+
+					return
+				}
+			}
+
+			if err != nil {
+				entry, err := contest.NewNodeLogEntryWithInterface(alias, true, bson.M{
+					"container": name,
+					"error":     err,
+				})
+				if err != nil {
+					l.Error().Err(err).Msg("failed NodeLogEntry")
+
+					return
+				}
+
+				cmd.logch <- entry
+
+				return
+			}
+
+			var bodyerr error
+
+			if body.Error != nil {
+				bodyerr = errors.Errorf(body.Error.Message)
+			}
+
+			entry, err := contest.NewNodeLogEntryWithInterface(alias, true, bson.M{
+				"container": name,
+				"error":     bodyerr,
+				"exit_code": body.StatusCode,
+			})
+			if err != nil {
+				l.Error().Err(err).Msg("failed NodeLogEntry")
+
+				return
+			}
+
+			cmd.logch <- entry
+		},
+	); err != nil {
+		return e(err, "")
 	}
+
+	if err := cmd.saveContainerLogs(ctx, alias); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (cmd *runCommand) startNode(ctx context.Context, alias string) error {
+	e := util.StringErrorFunc("failed to start node")
+
+	name := containerName(alias)
+
+	host := cmd.hosts.HostByContainer(name)
+	if host == nil {
+		return e(nil, "host not found")
+	}
+
+	if err := host.RemoveContainer(ctx, name, dockerTypes.ContainerRemoveOptions{
+		RemoveVolumes: true,
+		Force:         true,
+	}); err != nil {
+		if !errors.Is(err, util.ErrNotFound) {
+			return e(err, "")
+		}
+	}
+
+	config, hostconfig := cmd.nodeContainerConfigs(alias, host)
+	config.Cmd = []string{"bash", "-c", "n=0; while :; do [ $n -gt 10 ] && exit 1; date; pwd; find /data; sleep 1; n=$(expr $n + 1); done"} // FIXME
 
 	if err := host.CreateContainer(ctx, config, hostconfig, nil, name); err != nil {
 		return e(err, "")
@@ -749,7 +1026,7 @@ func (cmd *runCommand) startNode(ctx context.Context, alias string) error {
 }
 
 func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) error {
-	name := contest.ContainerName(alias)
+	name := containerName(alias)
 
 	host := cmd.hosts.HostByContainer(name)
 	if host == nil {
@@ -814,9 +1091,13 @@ func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) erro
 			}
 
 			if len(l.Text) > 0 {
+				if e := log.Trace(); e.Enabled() {
+					e.Str("node", alias).Str("text", l.Text).Msg("new log text")
+				}
+
 				switch entry, err := contest.NewNodeLogEntry(alias, stderr, []byte(l.Text)); {
 				case err != nil:
-					log.Error().Err(err).Str("text", l.Text).Msg("wrong node log")
+					log.Error().Err(err).Str("node", alias).Str("text", l.Text).Msg("wrong node log")
 				default:
 					cmd.logch <- entry
 				}
@@ -828,4 +1109,40 @@ func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) erro
 	go savetail(errt, true)
 
 	return nil
+}
+
+func (cmd *runCommand) nodeContainerConfigs(alias string, host contest.Host) (
+	*container.Config,
+	*container.HostConfig,
+) {
+	name := containerName(alias)
+
+	return &container.Config{
+			Hostname:     name,
+			User:         host.User(),
+			Image:        DefaultNodeImage,
+			AttachStdout: true,
+			AttachStderr: true,
+			WorkingDir:   "/data",
+			Cmd:          []string{"/node-binary", "init", "config.yml", "genesis.yml"},
+		},
+		&container.HostConfig{
+			Links: []string{containerName("redis") + ":redis"},
+			Mounts: []dockerMount.Mount{
+				{
+					Type:   dockerMount.TypeBind,
+					Source: filepath.Join(host.Base(), "node-binary"),
+					Target: "/node-binary",
+				},
+				{
+					Type:   dockerMount.TypeBind,
+					Source: filepath.Join(host.Base(), alias),
+					Target: "/data",
+				},
+			},
+		}
+}
+
+func containerName(alias string) string {
+	return fmt.Sprintf("%s-%s", contest.ContainerLabel, alias)
 }

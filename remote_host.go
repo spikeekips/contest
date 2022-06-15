@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"io"
 	"net"
+	"net/netip"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 
 	dockerClient "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
@@ -30,68 +33,52 @@ var tcpFreeportCmdF = `read FROM TO < /proc/sys/net/ipv4/ip_local_port_range
 		shuf | head -n 1`
 
 type RemoteHost struct {
+	sync.Mutex
 	*baseHost
 	savedsshclient *ssh.Client
 }
 
-func NewRemoteHost(addr *url.URL) (*RemoteHost, error) {
+func NewRemoteHost(base string, dockerhost *url.URL) (*RemoteHost, error) {
 	client, err := dockerClient.NewClientWithOpts(
-		dockerClient.WithHost(addr.String()),
+		dockerClient.WithHost(dockerhost.String()),
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "")
 	}
 
-	h := &RemoteHost{baseHost: newBaseHost(addr, client)}
+	if len(base) < 1 {
+		base = DefaultHostBase
+	}
 
-	if err := h.checkArch(); err != nil {
+	bh, err := newBaseHost(base, dockerhost, client)
+	if err != nil {
+		return nil, errors.Wrap(err, "")
+	}
+
+	h := &RemoteHost{baseHost: bh}
+
+	if err := h.checkEnv(); err != nil {
+		return nil, errors.Wrap(err, "")
+	}
+
+	if err := h.checkBase(); err != nil {
 		return nil, errors.Wrap(err, "")
 	}
 
 	return h, nil
 }
 
-func (h *RemoteHost) checkArch() error {
-	e := util.StringErrorFunc("failed to check arch")
-
-	session, err := h.sshSession()
-	if err != nil {
-		return e(err, "")
-	}
-	defer func() {
-		_ = session.Close()
-	}()
-
-	var b bytes.Buffer
-	session.Stdout = &b
-
-	if err := session.Run("uname -sm"); err != nil {
-		return e(err, "")
-	}
-
-	uname := strings.TrimSuffix(b.String(), "\n")
-
-	arch, found := supportedArchs[uname]
-	if !found {
-		return e(nil, "not supported arch, %q", uname)
-	}
-
-	h.arch = arch
-
-	return nil
-}
-
 func (h *RemoteHost) ContainerFreePort(id, network, innerPort string) (string, error) {
-	session, err := h.sshSession()
-	if err != nil {
-		return "", errors.Wrap(err, "")
-	}
-
-	defer func() {
-		_ = session.Close()
-	}()
-
 	return h.containerFreePort(id, network, innerPort, func(portmap nat.PortMap) (string, error) {
+		session, err := h.sshSession()
+		if err != nil {
+			return "", errors.Wrap(err, "")
+		}
+
+		defer func() {
+			_ = session.Close()
+		}()
+
 		return h.freePort(session, network, portmap)
 	})
 }
@@ -111,40 +98,8 @@ func (h *RemoteHost) FreePort(network string) (string, error) {
 	return h.freePort(session, network, nat.PortMap{})
 }
 
-func (h *RemoteHost) freePort(session *ssh.Session, network string, portmap nat.PortMap) (string, error) {
-	var bufstdout, bufstderr bytes.Buffer
-	session.Stdout = &bufstdout
-	session.Stderr = &bufstderr
-
-	var cmd string
-	switch network {
-	case "udp":
-		cmd = udpFreeportCmdF
-	case "tcp":
-		cmd = tcpFreeportCmdF
-	default:
-		return "", errors.Errorf("unsupported network, %q", network)
-	}
-
-	return h.baseHost.freePort(network, portmap, func() (string, error) {
-		bufstdout.Reset()
-		bufstderr.Reset()
-
-		switch err := session.Run(cmd); {
-		case err != nil:
-			return "", errors.Wrap(err, "")
-		case len(bufstderr.Bytes()) > 0:
-			return "", errors.Errorf("stderr: %q", bufstderr.String())
-		case len(bufstdout.Bytes()) < 1:
-			return "", errors.Errorf("empty output")
-		default:
-			return strings.TrimSpace(bufstdout.String()), nil
-		}
-	})
-}
-
 func (h *RemoteHost) Upload(s io.Reader, dest string, mode os.FileMode) error {
-	e := util.StringErrorFunc("failed to sftp")
+	e := util.StringErrorFunc("failed to upload")
 
 	client, err := h.sshClient()
 	if err != nil {
@@ -159,7 +114,9 @@ func (h *RemoteHost) Upload(s io.Reader, dest string, mode os.FileMode) error {
 		_ = st.Close()
 	}()
 
-	f, err := st.Create(dest)
+	newdest := filepath.Join(h.base, dest)
+
+	f, err := st.Create(newdest)
 	if err != nil {
 		return e(err, "")
 	}
@@ -172,7 +129,112 @@ func (h *RemoteHost) Upload(s io.Reader, dest string, mode os.FileMode) error {
 		return e(err, "")
 	}
 
-	if err := st.Chmod(dest, mode); err != nil {
+	if err := st.Chmod(newdest, mode); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (h *RemoteHost) Mkdir(dest string, mode os.FileMode) error {
+	e := util.StringErrorFunc("failed to Mkdir")
+
+	client, err := h.sshClient()
+	if err != nil {
+		return e(err, "")
+	}
+
+	st, err := sftp.NewClient(client)
+	if err != nil {
+		return e(err, "")
+	}
+	defer func() {
+		_ = st.Close()
+	}()
+
+	newdest := filepath.Join(h.base, dest)
+
+	if err := st.MkdirAll(newdest); err != nil {
+		return e(err, "")
+	}
+
+	if err := st.Chmod(newdest, mode); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (h *RemoteHost) LocalAddr() (addr netip.Addr, _ error) {
+	e := util.StringErrorFunc("failed to get local publish address")
+
+	out, err := h.run(`echo "${SSH_CONNECTION}"`)
+	if err != nil {
+		return addr, e(err, "")
+	}
+
+	l := strings.SplitN(out, " ", 2)
+	if len(l) != 2 {
+		return addr, e(nil, "invalid output")
+	}
+
+	addr, err = netip.ParseAddr(l[0])
+	if err != nil {
+		return addr, e(err, "")
+	}
+
+	return addr, nil
+}
+
+func (h *RemoteHost) checkEnv() error {
+	e := util.StringErrorFunc("failed to check env")
+
+	switch s, err := h.run("id -u"); {
+	case err != nil:
+		return e(err, "")
+	default:
+		h.user = strings.TrimSuffix(s, "\n")
+	}
+
+	switch s, err := h.run("uname -sm"); {
+	case err != nil:
+		return e(err, "")
+	default:
+		uname := strings.TrimSuffix(s, "\n")
+
+		arch, found := supportedArchs[uname]
+		if !found {
+			return e(nil, "not supported arch, %q", uname)
+		}
+
+		h.arch = arch
+
+	}
+
+	return nil
+}
+
+func (h *RemoteHost) checkBase() error {
+	e := util.StringErrorFunc("failed to check base")
+
+	client, err := h.sshClient()
+	if err != nil {
+		return e(err, "")
+	}
+
+	st, err := sftp.NewClient(client)
+	if err != nil {
+		return e(err, "")
+	}
+	defer func() {
+		_ = st.Close()
+	}()
+
+	if err := st.MkdirAll(h.base); err != nil {
+		return e(err, "")
+	}
+
+	if err := st.Chmod(h.base, 0o700); err != nil {
 		return e(err, "")
 	}
 
@@ -208,7 +270,7 @@ func (h *RemoteHost) sshClient() (*ssh.Client, error) {
 		HostKeyCallback: func(string, net.Addr, ssh.PublicKey) error { return nil },
 	}
 
-	conn, err := ssh.Dial("tcp", h.addr.Hostname()+":22", config)
+	conn, err := ssh.Dial("tcp", h.Hostname()+":22", config)
 	if err != nil {
 		return nil, e(err, "")
 	}
@@ -232,4 +294,56 @@ func (h *RemoteHost) sshSession() (*ssh.Session, error) {
 	}
 
 	return session, nil
+}
+
+func (h *RemoteHost) freePort(session *ssh.Session, network string, portmap nat.PortMap) (string, error) {
+	var bufstdout, bufstderr bytes.Buffer
+	session.Stdout = &bufstdout
+	session.Stderr = &bufstderr
+
+	var cmd string
+	switch network {
+	case "udp":
+		cmd = udpFreeportCmdF
+	case "tcp":
+		cmd = tcpFreeportCmdF
+	default:
+		return "", errors.Errorf("unsupported network, %q", network)
+	}
+
+	return h.baseHost.freePort(network, portmap, func() (string, error) {
+		bufstdout.Reset()
+		bufstderr.Reset()
+
+		switch err := session.Run(cmd); {
+		case err != nil:
+			return "", errors.Wrap(err, "")
+		case len(bufstderr.Bytes()) > 0:
+			return "", errors.Errorf("stderr: %q", bufstderr.String())
+		case len(bufstdout.Bytes()) < 1:
+			return "", errors.Errorf("empty output")
+		default:
+			return strings.TrimSpace(bufstdout.String()), nil
+		}
+	})
+}
+
+func (h *RemoteHost) run(cmd string) (string, error) {
+	session, err := h.sshSession()
+	if err != nil {
+		return "", err
+	}
+
+	defer func() {
+		_ = session.Close()
+	}()
+
+	var b bytes.Buffer
+	session.Stdout = &b
+
+	if err := session.Run(cmd); err != nil {
+		return "", err
+	}
+
+	return b.String(), nil
 }

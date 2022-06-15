@@ -10,16 +10,17 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-type Scenario struct {
-	Vars    map[string]interface{} `yaml:"vars"`
-	Designs DesignsScenario        `yaml:"designs"`
-	Expects []ExpectScenario       `yaml:"expects"`
+type Design struct {
+	Vars                            map[string]interface{} `yaml:"vars"`
+	NodeDesigns                     NodeDesigns            `yaml:"designs"`
+	Expects                         []ExpectScenario       `yaml:"expects"`
+	IgnoreWhenAbnormalContainerExit bool                   `yaml:"ignore_abnormal_container_exit"`
 }
 
-func (s Scenario) IsValid(b []byte) error {
-	e := util.StringErrorFunc("invalid Scenario")
+func (s Design) IsValid(b []byte) error {
+	e := util.StringErrorFunc("invalid Design")
 
-	if err := s.Designs.IsValid(b); err != nil {
+	if err := s.NodeDesigns.IsValid(b); err != nil {
 		return e(err, "")
 	}
 
@@ -36,15 +37,15 @@ func (s Scenario) IsValid(b []byte) error {
 	return nil
 }
 
-type DesignsScenario struct {
-	Common      string                   `yaml:"common"`
-	NumberNodes *int                     `yaml:"number-nodes"`
-	Nodes       map[string]string        `yaml:"nodes"`
-	Genesis     []map[string]interface{} `yaml:"genesis"`
+type NodeDesigns struct {
+	Common      string            `yaml:"common"`
+	NumberNodes *int              `yaml:"number-nodes"`
+	Nodes       map[string]string `yaml:"nodes"`
+	Genesis     string            `yaml:"genesis"`
 }
 
-func (s DesignsScenario) IsValid(b []byte) error {
-	e := util.StringErrorFunc("invalid DesignsScenario")
+func (s NodeDesigns) IsValid(b []byte) error {
+	e := util.StringErrorFunc("invalid NodeDesigns")
 
 	if (s.NumberNodes == nil || *s.NumberNodes < 1) && len(s.Nodes) < 1 {
 		return e(nil, "empty nodes")
@@ -62,7 +63,7 @@ func (s DesignsScenario) IsValid(b []byte) error {
 	return nil
 }
 
-func (s DesignsScenario) AllNodes() []string {
+func (s NodeDesigns) AllNodes() []string {
 	var num int
 
 	if s.NumberNodes != nil {
@@ -111,8 +112,8 @@ func (s DesignsScenario) AllNodes() []string {
 
 type ExpectScenario struct {
 	Condition string             `yaml:"condition"`
-	Actions   []ActionScenario   `yaml:"actions"`
-	Registers []RegisterScenario `yaml:"registers"`
+	Actions   []ScenarioAction   `yaml:"actions"`
+	Registers []ScenarioRegister `yaml:"registers"`
 }
 
 func (s ExpectScenario) IsValid(b []byte) error {
@@ -143,7 +144,7 @@ func (s ExpectScenario) Compile(vars *Vars) (newexpect ExpectScenario, err error
 		return newexpect, errors.Wrap(err, "")
 	}
 
-	newexpect.Actions = make([]ActionScenario, len(s.Actions))
+	newexpect.Actions = make([]ScenarioAction, len(s.Actions))
 	for i := range s.Actions {
 		newexpect.Actions[i], err = s.Actions[i].Compile(vars)
 		if err != nil {
@@ -151,7 +152,7 @@ func (s ExpectScenario) Compile(vars *Vars) (newexpect ExpectScenario, err error
 		}
 	}
 
-	newexpect.Registers = make([]RegisterScenario, len(s.Registers))
+	newexpect.Registers = make([]ScenarioRegister, len(s.Registers))
 	for i := range s.Registers {
 		newexpect.Registers[i], err = s.Registers[i].Compile(vars)
 		if err != nil {
@@ -162,13 +163,13 @@ func (s ExpectScenario) Compile(vars *Vars) (newexpect ExpectScenario, err error
 	return newexpect, nil
 }
 
-type ActionScenario struct {
+type ScenarioAction struct {
 	Type string   `yaml:"type"`
 	Args []string `yaml:"args"`
 }
 
-func (s ActionScenario) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid ActionScenario")
+func (s ScenarioAction) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid ScenarioAction")
 
 	switch {
 	case len(s.Type) < 1:
@@ -180,7 +181,7 @@ func (s ActionScenario) IsValid([]byte) error {
 	return nil
 }
 
-func (s ActionScenario) Compile(vars *Vars) (newaction ActionScenario, err error) {
+func (s ScenarioAction) Compile(vars *Vars) (newaction ScenarioAction, err error) {
 	newaction.Type = s.Type
 
 	newaction.Args = make([]string, len(s.Args))
@@ -194,13 +195,13 @@ func (s ActionScenario) Compile(vars *Vars) (newaction ActionScenario, err error
 	return newaction, nil
 }
 
-type RegisterScenario struct {
+type ScenarioRegister struct {
 	Type   string `yaml:"type"`
 	Assign string `yaml:"assign"`
 }
 
-func (s RegisterScenario) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid RegisterScenario")
+func (s ScenarioRegister) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid ScenarioRegister")
 
 	switch {
 	case len(s.Assign) < 1:
@@ -216,7 +217,7 @@ func (s RegisterScenario) IsValid([]byte) error {
 	return nil
 }
 
-func (s RegisterScenario) Compile(vars *Vars) (newregister RegisterScenario, err error) {
+func (s ScenarioRegister) Compile(vars *Vars) (newregister ScenarioRegister, err error) {
 	newregister.Type = s.Type
 
 	newregister.Assign, err = CompileTemplate(s.Assign, vars, nil)

@@ -16,6 +16,8 @@ import (
 	"github.com/docker/go-connections/nat"
 )
 
+var DefaultHostBase = "/tmp/contest"
+
 var supportedArchs = map[string]elf.Machine{
 	"Linux x86_64":  elf.EM_X86_64,
 	"Linux aarch64": elf.EM_AARCH64,
@@ -34,10 +36,15 @@ var supportedArchsStrings = map[elf.Machine]string{
 
 type Host interface {
 	Arch() elf.Machine
+	User() string
 	Address() string
 	Hostname() string
+	PublishHost() string
+	SetPublishHost(string)
+	Base() string
 	Close() error
 	Client() *dockerClient.Client
+	Mkdir(string, os.FileMode) error
 	Upload(io.Reader, string, os.FileMode) error
 	ContainerFreePort(string, string, string) (string, error)
 	CreateContainer(

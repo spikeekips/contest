@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	dockerTypes "github.com/docker/docker/api/types"
@@ -18,28 +17,57 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
+var defaultContainerStopTimeout = time.Second
+
 type baseHost struct {
-	sync.RWMutex
-	addr     *url.URL
-	client   *dockerClient.Client
-	started  map[ /* container name */ string] /* container id */ string
-	stopped  map[ /* container name */ string] /* container id */ string
-	portmaps *util.LockedMap
-	arch     elf.Machine
+	base        string
+	addr        *url.URL
+	publishhost string
+	client      *dockerClient.Client
+	portmaps    *util.LockedMap
+	arch        elf.Machine
+	user        string
+	containers  *util.LockedMap // map[name]cid
 }
 
-func newBaseHost(addr *url.URL, client *dockerClient.Client) *baseHost {
-	return &baseHost{
-		addr:     addr,
-		client:   client,
-		started:  map[string]string{},
-		stopped:  map[string]string{},
-		portmaps: util.NewLockedMap(),
+func newBaseHost(base string, addr *url.URL, client *dockerClient.Client) (*baseHost, error) {
+	h := &baseHost{
+		base:       base,
+		addr:       addr,
+		client:     client,
+		portmaps:   util.NewLockedMap(),
+		containers: util.NewLockedMap(),
 	}
+
+	if err := h.cleanContainers(true); err != nil {
+		return nil, errors.Wrap(err, "")
+	}
+
+	return h, nil
+}
+
+func (h *baseHost) User() string {
+	return h.user
+}
+
+func (h *baseHost) Base() string {
+	return h.base
 }
 
 func (h *baseHost) Close() error {
 	e := util.StringErrorFunc("failed to close host")
+
+	_ = h.cleanContainers(false)
+
+	if err := h.client.Close(); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (h *baseHost) cleanContainers(remove bool) error {
+	e := util.StringErrorFunc("failed to clean containers")
 
 	l, err := h.client.ContainerList(context.Background(), dockerTypes.ContainerListOptions{All: true})
 	if err != nil {
@@ -47,6 +75,7 @@ func (h *baseHost) Close() error {
 	}
 
 	var cids []string
+
 	for i := range l {
 		c := l[i]
 
@@ -57,15 +86,33 @@ func (h *baseHost) Close() error {
 		}
 	}
 
-	if len(cids) > 0 {
-		for i := range cids {
-			if err := h.client.ContainerStop(context.Background(), cids[i], nil); err != nil {
-				return e(err, "")
-			}
-		}
+	if len(cids) < 1 {
+		return nil
 	}
 
-	if err := h.client.Close(); err != nil {
+	jobch := make(chan util.ContextWorkerCallback)
+
+	go func() {
+		for i := range cids {
+			cid := cids[i]
+			jobch <- func(ctx context.Context, _ uint64) error {
+				_ = h.client.ContainerPause(context.Background(), cid)
+				_ = h.client.ContainerStop(context.Background(), cid, &defaultContainerStopTimeout)
+
+				if remove {
+					_ = h.client.ContainerRemove(context.Background(), cid, dockerTypes.ContainerRemoveOptions{
+						RemoveVolumes: true, Force: true,
+					})
+				}
+
+				return nil
+			}
+		}
+
+		close(jobch)
+	}()
+
+	if err := util.RunErrgroupWorkerByChan(context.Background(), int64(len(cids)), jobch); err != nil {
 		return e(err, "")
 	}
 
@@ -82,6 +129,18 @@ func (h *baseHost) Address() string {
 
 func (h *baseHost) Hostname() string {
 	return h.addr.Hostname()
+}
+
+func (h *baseHost) PublishHost() string {
+	if len(h.publishhost) > 0 {
+		return h.publishhost
+	}
+
+	return h.Hostname()
+}
+
+func (h *baseHost) SetPublishHost(s string) {
+	h.publishhost = s
 }
 
 func (h *baseHost) PortMap(id string) nat.PortMap {
@@ -104,10 +163,15 @@ func (h *baseHost) CreateContainer(
 	networkingConfig *network.NetworkingConfig,
 	name string,
 ) error {
-	h.Lock()
-	defer h.Unlock()
+	_, err := h.containers.Set(name, func(i interface{}) (interface{}, error) {
+		if !util.IsNilLockedValue(i) {
+			return i, nil
+		}
 
-	_, err := h.createContainer(ctx, config, hostConfig, networkingConfig, name)
+		cid, err := h.createContainer(ctx, config, hostConfig, networkingConfig, name)
+
+		return cid, err
+	})
 
 	return err
 }
@@ -119,32 +183,19 @@ func (h *baseHost) createContainer(
 	networkingConfig *network.NetworkingConfig,
 	name string,
 ) (string, error) {
-	e := util.StringErrorFunc("failed to create container")
-
-	cid, _, err := h.findContainer(ctx, name)
+	r, err := h.client.ContainerCreate(
+		ctx,
+		config,
+		hostConfig,
+		networkingConfig,
+		nil,
+		name,
+	)
 	if err != nil {
-		return "", e(err, "")
+		return "", errors.Wrap(err, "failed to create container")
 	}
 
-	if len(cid) < 1 {
-		r, err := h.client.ContainerCreate(
-			ctx,
-			config,
-			hostConfig,
-			networkingConfig,
-			nil,
-			name,
-		)
-		if err != nil {
-			return "", e(err, "")
-		}
-
-		cid = r.ID
-	}
-
-	h.stopped[name] = cid
-
-	return cid, nil
+	return r.ID, nil
 }
 
 func (h *baseHost) StartContainer(
@@ -155,39 +206,20 @@ func (h *baseHost) StartContainer(
 	name string,
 	whenExit func(container.ContainerWaitOKBody, error),
 ) error {
-	h.Lock()
-	defer h.Unlock()
-
 	e := util.StringErrorFunc("failed to start container")
 
-	cid, started, err := h.findContainer(ctx, name)
+	cid, err := h.findContainer(ctx, name)
 	if err != nil {
 		return e(err, "")
 	}
 
 	if len(cid) < 1 {
-		id, err := h.createContainer(
-			ctx,
-			config,
-			hostConfig,
-			networkingConfig,
-			name,
-		)
-		if err != nil {
-			return e(err, "")
-		}
-
-		cid = id
+		return e(util.ErrNotFound.Errorf("container not found"), "")
 	}
 
-	if !started {
-		if err := h.client.ContainerStart(ctx, cid, dockerTypes.ContainerStartOptions{}); err != nil {
-			return e(err, "")
-		}
+	if err := h.client.ContainerStart(ctx, cid, dockerTypes.ContainerStartOptions{}); err != nil {
+		return e(err, "")
 	}
-
-	h.started[name] = cid
-	delete(h.stopped, name)
 
 	if whenExit != nil {
 		go func() {
@@ -212,19 +244,22 @@ func (h *baseHost) StartContainer(
 func (h *baseHost) StopContainer(ctx context.Context, name string, timeout *time.Duration) error {
 	e := util.StringErrorFunc("failed to stop container")
 
-	cid, started, err := h.findContainer(ctx, name)
+	cid, err := h.findContainer(ctx, name)
 	if err != nil {
 		return e(err, "")
 	}
 
-	if started {
-		if err := h.client.ContainerStop(ctx, cid, timeout); err != nil {
-			return e(err, "")
-		}
+	if err := h.client.ContainerPause(ctx, cid); err != nil {
+		return e(err, "")
 	}
 
-	h.stopped[name] = cid
-	delete(h.started, name)
+	if timeout == nil {
+		timeout = &defaultContainerStopTimeout
+	}
+
+	if err := h.client.ContainerStop(ctx, cid, timeout); err != nil {
+		return e(err, "")
+	}
 
 	return nil
 }
@@ -232,27 +267,25 @@ func (h *baseHost) StopContainer(ctx context.Context, name string, timeout *time
 func (h *baseHost) RemoveContainer(ctx context.Context, name string, options dockerTypes.ContainerRemoveOptions) error {
 	e := util.StringErrorFunc("failed to remove container")
 
-	cid, started, err := h.findContainer(ctx, name)
-	if err != nil {
-		return e(err, "")
-	}
-
-	if len(cid) < 1 {
-		return e(util.ErrNotFound.Errorf("container not found"), "")
-	}
-
-	if started {
-		if err := h.client.ContainerStop(ctx, cid, nil); err != nil {
-			return e(err, "")
+	if err := h.containers.Remove(name, func(i interface{}) error {
+		if util.IsNilLockedValue(i) {
+			return util.ErrNotFound.Errorf("container not found")
 		}
-	}
 
-	if err := h.client.ContainerRemove(ctx, cid, options); err != nil {
+		cid := i.(string)
+
+		if err := h.StopContainer(ctx, name, nil); err != nil {
+			return err
+		}
+
+		if err := h.client.ContainerRemove(ctx, cid, options); err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
 		return e(err, "")
 	}
-
-	delete(h.stopped, name)
-	delete(h.started, name)
 
 	return nil
 }
@@ -264,45 +297,21 @@ func (h *baseHost) ContainerLogs(
 ) (io.ReadCloser, error) {
 	e := util.StringErrorFunc("failed container logs")
 
-	var cid string
-
-	switch id, found := h.stopped[name]; {
-	case found:
-		cid = id
-	default:
-		switch id, found := h.started[name]; {
-		case !found:
-			return nil, e(nil, "container not found")
-		default:
-			cid = id
-		}
+	cid, err := h.findContainer(ctx, name)
+	if err != nil {
+		return nil, e(err, "")
 	}
 
 	return h.client.ContainerLogs(ctx, cid, options)
 }
 
-func (h *baseHost) findContainer(ctx context.Context, name string) (string, bool, error) {
-	l, err := h.client.ContainerList(ctx, dockerTypes.ContainerListOptions{All: true})
-	if err != nil {
-		return "", false, err
+func (h *baseHost) findContainer(ctx context.Context, name string) (string, error) {
+	switch i, found := h.containers.Value(name); {
+	case !found:
+		return "", nil
+	default:
+		return i.(string), nil
 	}
-
-	var cid string
-	var started bool
-
-	for i := range l {
-		c := l[i]
-
-		if util.InStringSlice("/"+name, c.Names) {
-			cid = c.ID
-
-			started = c.State == "running"
-
-			break
-		}
-	}
-
-	return cid, started, nil
 }
 
 func (h *baseHost) containerFreePort(
@@ -324,6 +333,12 @@ func (h *baseHost) containerFreePort(
 			portmap = nat.PortMap{}
 		default:
 			portmap = i.(nat.PortMap)
+
+			if p, found := portmap[source]; found {
+				port = p[0].HostPort
+
+				return portmap, nil
+			}
 		}
 
 		if port, err = f(portmap); err != nil {
