@@ -120,6 +120,14 @@ func (cmd *runCommand) Run() error {
 		if err != nil {
 			return err
 		}
+
+
+		_ = cmd.hosts.Traverse(func(host contest.Host) (bool, error) {
+			err := host.Download("/tmp/"+host.Hostname() + ".tar.gz")
+			fmt.Println(">>>", err)
+
+			return true, nil
+		}
 	}
 
 	return nil

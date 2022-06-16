@@ -1,8 +1,12 @@
 package contest
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
+	"fmt"
 	"io"
+	"io/fs"
 	"net/url"
 	"os"
 	"os/exec"
@@ -98,6 +102,79 @@ func (h *LocalHost) Upload(s io.Reader, dest string, mode os.FileMode) error {
 	if _, err := io.Copy(f, s); err != nil {
 		return e(err, "")
 	}
+
+	return nil
+}
+
+func (h *LocalHost) CollectResult(outputfile string) error {
+	e := util.StringErrorFunc("failed to collect result")
+
+	out, err := os.Create(outputfile)
+	if err != nil {
+		return e(err, "")
+	}
+
+	defer func() {
+		_ = out.Close()
+	}()
+
+	gw := gzip.NewWriter(out)
+	defer func() {
+		_ = gw.Close()
+	}()
+
+	tw := tar.NewWriter(gw)
+	defer func() {
+		_ = tw.Close()
+	}()
+
+	if err := filepath.Walk(h.base, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() && info.Name() == subDirToSkip {
+			return filepath.SkipDir
+		}
+
+		fmt.Printf("visited file or dir: %q\n", path)
+		return nil
+	}); err != nil {
+		return e(err, "")
+	}
+
+	/*
+		for i := range files {
+			f, err := os.Open(files[i])
+			if err != nil {
+				return e(err, "")
+			}
+
+			defer func() {
+				f.Close()
+			}()
+
+			info, err := f.Stat()
+			if err != nil {
+				return e(err, "")
+			}
+
+			header, err := tar.FileInfoHeader(info, info.Name())
+			if err != nil {
+				return e(err, "")
+			}
+
+			header.Name = files[i]
+
+			if err = tw.WriteHeader(header); err != nil {
+				return e(err, "")
+			}
+
+			if _, err = io.Copy(tw, f); err != nil {
+				return e(err, "")
+			}
+		}
+	*/
 
 	return nil
 }

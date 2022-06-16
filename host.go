@@ -46,6 +46,7 @@ type Host interface {
 	Client() *dockerClient.Client
 	Mkdir(string, os.FileMode) error
 	Upload(io.Reader, string, os.FileMode) error
+	CollectResult(outputfile string) error
 	ContainerFreePort(string, string, string) (string, error)
 	CreateContainer(
 		_ context.Context,

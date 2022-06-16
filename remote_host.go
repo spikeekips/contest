@@ -121,6 +121,10 @@ func (h *RemoteHost) Upload(s io.Reader, dest string, mode os.FileMode) error {
 	return nil
 }
 
+func (h *LocalHost) CollectResult(outputfile string) error {
+	return nil
+}
+
 func (h *RemoteHost) Mkdir(dest string, mode os.FileMode) error {
 	e := util.StringErrorFunc("failed to Mkdir")
 
