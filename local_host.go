@@ -42,7 +42,7 @@ func NewLocalHost(base string, dockerhost *url.URL) (*LocalHost, error) {
 		client = i
 	}
 
-	bh, err := newBaseHost(filepath.Join(base, util.ULID().String()), localHostURI, client)
+	bh, err := newBaseHost(base, localHostURI, client)
 	if err != nil {
 		return nil, errors.Wrap(err, "")
 	}

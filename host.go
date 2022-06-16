@@ -16,7 +16,7 @@ import (
 	"github.com/docker/go-connections/nat"
 )
 
-var DefaultHostBase = "/tmp/contest"
+var DefaultHostBase = "/tmp/contest" // FIXME move under cmd
 
 var supportedArchs = map[string]elf.Machine{
 	"Linux x86_64":  elf.EM_X86_64,

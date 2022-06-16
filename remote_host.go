@@ -2,6 +2,7 @@ package contest
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net"
 	"net/netip"
@@ -44,10 +45,6 @@ func NewRemoteHost(base string, dockerhost *url.URL) (*RemoteHost, error) {
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "")
-	}
-
-	if len(base) < 1 {
-		base = DefaultHostBase
 	}
 
 	bh, err := newBaseHost(base, dockerhost, client)
@@ -99,38 +96,26 @@ func (h *RemoteHost) FreePort(network string) (string, error) {
 }
 
 func (h *RemoteHost) Upload(s io.Reader, dest string, mode os.FileMode) error {
-	e := util.StringErrorFunc("failed to upload")
-
-	client, err := h.sshClient()
+	session, err := h.sshSession()
 	if err != nil {
-		return e(err, "")
+		return err
 	}
-
-	st, err := sftp.NewClient(client)
-	if err != nil {
-		return e(err, "")
-	}
-	defer func() {
-		_ = st.Close()
-	}()
 
 	newdest := filepath.Join(h.base, dest)
 
-	f, err := st.Create(newdest)
-	if err != nil {
-		return e(err, "")
-	}
+	// NOTE golang's sftp is too slow
+	session.Stdin = s
 
 	defer func() {
-		_ = f.Close()
+		_ = session.Close()
 	}()
 
-	if _, err := f.ReadFrom(s); err != nil {
-		return e(err, "")
+	if err := session.Run(fmt.Sprintf(`cat - > '%s'`, newdest)); err != nil {
+		return err
 	}
 
-	if err := st.Chmod(newdest, mode); err != nil {
-		return e(err, "")
+	if _, err := h.run(fmt.Sprintf(`chmod 700 '%s'`, newdest)); err != nil {
+		return err
 	}
 
 	return nil

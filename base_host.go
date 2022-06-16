@@ -3,8 +3,10 @@ package contest
 import (
 	"context"
 	"debug/elf"
+	"fmt"
 	"io"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -31,8 +33,19 @@ type baseHost struct {
 }
 
 func newBaseHost(base string, addr *url.URL, client *dockerClient.Client) (*baseHost, error) {
+	fmt.Println(">>>>>>>>>>>>>>>>>>>")
+	fmt.Println(">>>>>>>>>>>>>>>>>>>", base)
+	fmt.Println(">>>>>>>>>>>>>>>>>>>")
+	fmt.Println(">>>>>>>>>>>>>>>>>>>")
+	fmt.Println(">>>>>>>>>>>>>>>>>>>")
+	fmt.Println(">>>>>>>>>>>>>>>>>>>")
+	fmt.Println(">>>>>>>>>>>>>>>>>>>")
+	fmt.Println(">>>>>>>>>>>>>>>>>>>")
+	fmt.Println(">>>>>>>>>>>>>>>>>>>")
+	fmt.Println(">>>>>>>>>>>>>>>>>>>")
+	fmt.Println(">>>>>>>>>>>>>>>>>>>")
 	h := &baseHost{
-		base:       base,
+		base:       filepath.Join(base, util.ULID().String()),
 		addr:       addr,
 		client:     client,
 		portmaps:   util.NewLockedMap(),

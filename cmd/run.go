@@ -37,7 +37,7 @@ var defaultMongodbURI = "mongodb://localhost:27017/contest_" + contestID
 
 type runCommand struct {
 	BaseDir      string        `arg:"" name:"base_directory" help:"base directory"`
-	Scenario     string        `arg:"" name:"scenario" help:"scenario file" type:"existingfile"`
+	Design       string        `arg:"" name:"scenario" help:"scenario file" type:"existingfile"`
 	Hosts        []HostFlag    `arg:"" name:"host" help:"docker host"`
 	NodeBinaries []string      `name:"node-binary" help:"node binary files by architecture"`
 	Mongodb      string        `name:"mongodb" help:"mongodb uri" default:"${mongodb_uri}"`
@@ -242,7 +242,7 @@ func (cmd *runCommand) prepareHosts() error {
 
 			host = i
 		default:
-			i, err := contest.NewRemoteHost(filepath.Join(h.base, contestID), h.dockerhost)
+			i, err := contest.NewRemoteHost(h.base, h.dockerhost)
 			if err != nil {
 				return e(err, "")
 			}
@@ -373,45 +373,46 @@ func (cmd *runCommand) prepareBinaries(host contest.Host) error {
 func (cmd *runCommand) prepareBase() error {
 	e := util.StringErrorFunc("failed to prepare base directory")
 
-	scenario := filepath.Base(cmd.Scenario)
-	scenario = scenario[:len(scenario)-len(filepath.Ext(scenario))]
-
-	base := filepath.Join(
-		cmd.BaseDir,
-		fmt.Sprintf("%s-%s-%s", contestID, localtime.Now().Format("20060102T150405.999999999"), scenario),
-	)
-
-	switch fi, err := os.Stat(base); {
+	switch fi, err := os.Stat(cmd.BaseDir); {
 	case err == nil:
 		if !fi.IsDir() {
-			return e(nil, "base directory,%q not directory", base)
-		}
-
-		if err := os.RemoveAll(base); err != nil {
-			return e(err, "")
+			return e(nil, "base directory,%q not directory", cmd.BaseDir)
 		}
 	case !os.IsNotExist(err):
 		return e(err, "")
+	default:
+		if err := os.MkdirAll(cmd.BaseDir, 0o700); err != nil {
+			return e(err, "")
+		}
 	}
 
-	if err := os.MkdirAll(base, 0o700); err != nil {
-		return e(err, "")
-	}
+	suffix := fmt.Sprintf("%s-%s-%s", contestID, localtime.Now().Format("20060102T150405.999999999"), filepath.Base(cmd.Design))
 
-	switch abs, err := filepath.Abs(base); {
+	abs, err := filepath.Abs(cmd.BaseDir)
+	switch {
 	case err != nil:
 		return e(err, "")
 	default:
-		cmd.basedir = abs
+		cmd.basedir = filepath.Join(abs, suffix)
 	}
 
 	for i := range cmd.Hosts {
 		h := cmd.Hosts[i]
 
-		if h.host == "localhost" && len(h.base) < 1 {
-			h.base = cmd.basedir
-			cmd.Hosts[i] = h
+		switch {
+		case h.host == "localhost":
+			if len(h.base) < 1 {
+				h.base = abs
+			}
+		default:
+			if len(h.base) < 1 {
+				h.base = contest.DefaultHostBase
+			}
 		}
+
+		h.base = filepath.Join(h.base, suffix)
+
+		cmd.Hosts[i] = h
 	}
 
 	return nil
@@ -431,7 +432,7 @@ func (cmd *runCommand) prepareLogs() error {
 func (cmd *runCommand) prepareScenario() error {
 	e := util.StringErrorFunc("failed to load scenario")
 
-	i, err := os.ReadFile(cmd.Scenario)
+	i, err := os.ReadFile(cmd.Design)
 	if err != nil {
 		return e(err, "")
 	}
