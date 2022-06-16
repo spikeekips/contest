@@ -3,8 +3,6 @@ package contest
 import (
 	"archive/tar"
 	"bytes"
-	"compress/gzip"
-	"fmt"
 	"io"
 	"io/fs"
 	"net/url"
@@ -109,6 +107,12 @@ func (h *LocalHost) Upload(s io.Reader, dest string, mode os.FileMode) error {
 func (h *LocalHost) CollectResult(outputfile string) error {
 	e := util.StringErrorFunc("failed to collect result")
 
+	// NOTE golang's gzipwriter too slow
+	ext := filepath.Ext(outputfile)
+	if ext == ".gz" {
+		outputfile = outputfile[:len(outputfile)-len(ext)]
+	}
+
 	out, err := os.Create(outputfile)
 	if err != nil {
 		return e(err, "")
@@ -118,63 +122,52 @@ func (h *LocalHost) CollectResult(outputfile string) error {
 		_ = out.Close()
 	}()
 
-	gw := gzip.NewWriter(out)
-	defer func() {
-		_ = gw.Close()
-	}()
-
-	tw := tar.NewWriter(gw)
+	tw := tar.NewWriter(out)
 	defer func() {
 		_ = tw.Close()
 	}()
+
+	addfile := func(filename string, info fs.FileInfo) error {
+		f, err := os.Open(filename)
+		if err != nil {
+			return err
+		}
+
+		defer func() {
+			_ = f.Close()
+		}()
+
+		header, err := tar.FileInfoHeader(info, info.Name())
+		if err != nil {
+			return err
+		}
+
+		header.Name, _ = filepath.Rel(h.base, filename)
+
+		if err = tw.WriteHeader(header); err != nil {
+			return err
+		}
+
+		if _, err = io.Copy(tw, f); err != nil {
+			return err
+		}
+
+		return nil
+	}
 
 	if err := filepath.Walk(h.base, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if info.IsDir() && info.Name() == subDirToSkip {
-			return filepath.SkipDir
+		if info.IsDir() {
+			return nil
 		}
 
-		fmt.Printf("visited file or dir: %q\n", path)
-		return nil
+		return addfile(path, info)
 	}); err != nil {
 		return e(err, "")
 	}
-
-	/*
-		for i := range files {
-			f, err := os.Open(files[i])
-			if err != nil {
-				return e(err, "")
-			}
-
-			defer func() {
-				f.Close()
-			}()
-
-			info, err := f.Stat()
-			if err != nil {
-				return e(err, "")
-			}
-
-			header, err := tar.FileInfoHeader(info, info.Name())
-			if err != nil {
-				return e(err, "")
-			}
-
-			header.Name = files[i]
-
-			if err = tw.WriteHeader(header); err != nil {
-				return e(err, "")
-			}
-
-			if _, err = io.Copy(tw, f); err != nil {
-				return e(err, "")
-			}
-		}
-	*/
 
 	return nil
 }

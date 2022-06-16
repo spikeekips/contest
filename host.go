@@ -38,6 +38,7 @@ type Host interface {
 	Arch() elf.Machine
 	User() string
 	Address() string
+	HostID() string
 	Hostname() string
 	PublishHost() string
 	SetPublishHost(string)

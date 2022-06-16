@@ -120,14 +120,6 @@ func (cmd *runCommand) Run() error {
 		if err != nil {
 			return err
 		}
-
-
-		_ = cmd.hosts.Traverse(func(host contest.Host) (bool, error) {
-			err := host.Download("/tmp/"+host.Hostname() + ".tar.gz")
-			fmt.Println(">>>", err)
-
-			return true, nil
-		}
 	}
 
 	return nil
@@ -136,6 +128,15 @@ func (cmd *runCommand) Run() error {
 func (cmd *runCommand) closeHosts() error {
 	log.Debug().Msg("trying to close hosts")
 	defer log.Debug().Msg("hosts closed")
+
+	_ = cmd.hosts.Traverse(func(host contest.Host) (bool, error) {
+		log.Debug().Str("host", host.HostID()).Msg("trying to collect result")
+		defer log.Debug().Str("host", host.HostID()).Msg("collected result")
+
+		_ = host.CollectResult(filepath.Join(cmd.basedir, host.Hostname()+"-"+filepath.Base(host.Base())+".tar.gz"))
+
+		return true, nil
+	})
 
 	switch {
 	case cmd.hosts == nil:
@@ -590,6 +591,7 @@ func (cmd *runCommand) watchLogs(ctx context.Context) error {
 	copy(expects, cmd.design.Expects)
 
 	var active contest.ExpectScenario
+	var queries []bson.M
 
 	newactive := func() error {
 		active, expects = expects[0], expects[1:]
@@ -599,7 +601,16 @@ func (cmd *runCommand) watchLogs(ctx context.Context) error {
 			return errors.Wrap(err, "")
 		}
 
-		log.Debug().Interface("expect", i).Msg("new expect")
+		active = i
+
+		q, err := cmd.compileQuery(active)
+		if err != nil {
+			return errors.Wrap(err, "")
+		}
+
+		queries = q
+
+		log.Debug().Interface("expect", active).Msg("new expect")
 
 		return nil
 	}
@@ -617,18 +628,20 @@ end:
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			switch ok, err := cmd.evaluateLog(ctx, active); {
+			switch left, ok, err := cmd.evaluateLog(ctx, active, queries); {
 			case err != nil:
 				return errors.Wrap(err, "")
 			case ok:
-				log.Debug().Interface("expect", active).Msg("matched")
-
 				if len(expects) < 1 { // NOTE finished
 					break end
 				}
 
-				if err := newactive(); err != nil {
-					return errors.Wrap(err, "")
+				queries = left
+
+				if len(queries) < 1 {
+					if err := newactive(); err != nil {
+						return errors.Wrap(err, "")
+					}
 				}
 			}
 		}
@@ -639,27 +652,82 @@ end:
 	return nil
 }
 
-func (cmd *runCommand) evaluateLog(ctx context.Context, expect contest.ExpectScenario) (bool, error) {
-	var ok bool
+func (cmd *runCommand) compileQuery(expect contest.ExpectScenario) ([]bson.M, error) {
+	var queries []bson.M
+	if len(expect.Range) < 1 {
+		condition, err := expect.CompileCondition(cmd.vars)
+		if err != nil {
+			return nil, errors.Wrap(err, "")
+		}
 
-	current, err := expect.Compile(cmd.vars)
-	if err != nil {
-		return false, errors.Wrap(err, "")
+		var query bson.M
+		if err := bson.UnmarshalExtJSON([]byte(condition), false, &query); err != nil {
+			return nil, errors.Wrap(err, "")
+		}
+
+		return []bson.M{query}, nil
 	}
 
-	var query bson.M
-	if err := bson.UnmarshalExtJSON([]byte(current.Condition), false, &query); err != nil {
-		return false, errors.Wrap(err, "")
+	for k := range expect.Range {
+		queries = make([]bson.M, len(expect.Range[k]))
+
+		for i := range expect.Range[k] {
+			n := bson.M{}
+
+			vars := cmd.vars.Clone(nil)
+			vars.Set(".self", expect.Range[k][i])
+
+			condition, err := expect.CompileCondition(vars)
+			if err != nil {
+				return nil, errors.Wrap(err, "")
+			}
+
+			var query bson.M
+			if err := bson.UnmarshalExtJSON([]byte(condition), false, &query); err != nil {
+				return nil, errors.Wrap(err, "")
+			}
+
+			for j := range query {
+				n[j] = query[j]
+			}
+
+			n[k] = expect.Range[k][i]
+
+			queries[i] = n
+		}
+
+		break
+	}
+
+	return queries, nil
+}
+
+func (cmd *runCommand) evaluateLog(ctx context.Context, expect contest.ExpectScenario, queries []bson.M) (left []bson.M, ok bool, _ error) {
+	current, err := expect.Compile(cmd.vars)
+	if err != nil {
+		return left, false, errors.Wrap(err, "")
+	}
+
+	query := queries[0]
+
+	l := log.With().Interface("query", query).Logger()
+
+	l.Debug().Msg("querying")
+
+	if len(queries) > 0 {
+		left = queries[1:]
 	}
 
 	r, found, err := cmd.db.Find(ctx, query)
 	switch {
 	case err != nil:
-		return false, errors.Wrap(err, "")
+		return left, false, errors.Wrap(err, "")
 	case !found:
-		return false, nil
+		return left, false, nil
 	default:
 		ok = found
+
+		l.Debug().Msg("matched")
 	}
 
 	for i := range current.Actions {
@@ -671,7 +739,7 @@ func (cmd *runCommand) evaluateLog(ctx context.Context, expect contest.ExpectSce
 		if err := cmd.action(ctx, action); err != nil {
 			l.Error().Err(err).Msg("failed to run action")
 
-			return ok, errors.Wrap(err, "")
+			return left, ok, errors.Wrap(err, "")
 		}
 
 		l.Debug().Msg("action done")
@@ -686,13 +754,13 @@ func (cmd *runCommand) evaluateLog(ctx context.Context, expect contest.ExpectSce
 		if err := cmd.register(r, register); err != nil {
 			l.Error().Err(err).Msg("failed to register")
 
-			return ok, errors.Wrap(err, "")
+			return left, ok, errors.Wrap(err, "")
 		}
 
 		l.Debug().Msg("register done")
 	}
 
-	return true, nil
+	return left, true, nil
 }
 
 func (cmd *runCommand) register(

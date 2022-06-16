@@ -111,9 +111,10 @@ func (s NodeDesigns) AllNodes() []string {
 }
 
 type ExpectScenario struct {
-	Condition string             `yaml:"condition"`
-	Actions   []ScenarioAction   `yaml:"actions"`
-	Registers []ScenarioRegister `yaml:"registers"`
+	Condition string              `yaml:"condition"`
+	Range     map[string][]string `yaml:"range"`
+	Actions   []ScenarioAction    `yaml:"actions"`
+	Registers []ScenarioRegister  `yaml:"registers"`
 }
 
 func (s ExpectScenario) IsValid(b []byte) error {
@@ -138,12 +139,17 @@ func (s ExpectScenario) IsValid(b []byte) error {
 	return nil
 }
 
-func (s ExpectScenario) Compile(vars *Vars) (newexpect ExpectScenario, err error) {
-	newexpect.Condition, err = CompileTemplate(s.Condition, vars, nil)
+func (s ExpectScenario) CompileCondition(vars *Vars) (string, error) { // FIXME return compiled string
+	c, err := CompileTemplate(s.Condition, vars, nil)
 	if err != nil {
-		return newexpect, errors.Wrap(err, "")
+		return "", errors.Wrap(err, "")
 	}
 
+	return c, nil
+}
+
+func (s ExpectScenario) Compile(vars *Vars) (newexpect ExpectScenario, err error) {
+	newexpect.Condition = s.Condition
 	newexpect.Actions = make([]ScenarioAction, len(s.Actions))
 	for i := range s.Actions {
 		newexpect.Actions[i], err = s.Actions[i].Compile(vars)
@@ -157,6 +163,23 @@ func (s ExpectScenario) Compile(vars *Vars) (newexpect ExpectScenario, err error
 		newexpect.Registers[i], err = s.Registers[i].Compile(vars)
 		if err != nil {
 			return newexpect, errors.Wrap(err, "")
+		}
+	}
+
+	if len(s.Range) > 0 {
+		newexpect.Range = map[string][]string{}
+
+		for i := range s.Range {
+			newexpect.Range[i] = make([]string, len(s.Range[i]))
+
+			for j := range s.Range[i] {
+				r, err := CompileTemplate(s.Range[i][j], vars, nil)
+				if err != nil {
+					return newexpect, errors.Wrap(err, "")
+				}
+
+				newexpect.Range[i][j] = r
+			}
 		}
 	}
 

@@ -33,17 +33,6 @@ type baseHost struct {
 }
 
 func newBaseHost(base string, addr *url.URL, client *dockerClient.Client) (*baseHost, error) {
-	fmt.Println(">>>>>>>>>>>>>>>>>>>")
-	fmt.Println(">>>>>>>>>>>>>>>>>>>", base)
-	fmt.Println(">>>>>>>>>>>>>>>>>>>")
-	fmt.Println(">>>>>>>>>>>>>>>>>>>")
-	fmt.Println(">>>>>>>>>>>>>>>>>>>")
-	fmt.Println(">>>>>>>>>>>>>>>>>>>")
-	fmt.Println(">>>>>>>>>>>>>>>>>>>")
-	fmt.Println(">>>>>>>>>>>>>>>>>>>")
-	fmt.Println(">>>>>>>>>>>>>>>>>>>")
-	fmt.Println(">>>>>>>>>>>>>>>>>>>")
-	fmt.Println(">>>>>>>>>>>>>>>>>>>")
 	h := &baseHost{
 		base:       filepath.Join(base, util.ULID().String()),
 		addr:       addr,
@@ -57,6 +46,10 @@ func newBaseHost(base string, addr *url.URL, client *dockerClient.Client) (*base
 	}
 
 	return h, nil
+}
+
+func (h *baseHost) HostID() string {
+	return fmt.Sprintf("%s-%s", h.Hostname(), filepath.Base(h.base))
 }
 
 func (h *baseHost) User() string {

@@ -121,7 +121,29 @@ func (h *RemoteHost) Upload(s io.Reader, dest string, mode os.FileMode) error {
 	return nil
 }
 
-func (h *LocalHost) CollectResult(outputfile string) error {
+func (h *RemoteHost) CollectResult(outputfile string) error {
+	e := util.StringErrorFunc("failed to collect result")
+
+	out, err := os.Create(outputfile)
+	if err != nil {
+		return e(err, "")
+	}
+
+	session, err := h.sshSession()
+	if err != nil {
+		return e(err, "")
+	}
+
+	defer func() {
+		_ = session.Close()
+	}()
+
+	session.Stdout = out
+
+	if err := session.Run(fmt.Sprintf(`cd "%s" && tar zcf - .`, h.base)); err != nil {
+		return e(err, "")
+	}
+
 	return nil
 }
 
