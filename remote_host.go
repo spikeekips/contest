@@ -65,34 +65,10 @@ func NewRemoteHost(base string, dockerhost *url.URL) (*RemoteHost, error) {
 	return h, nil
 }
 
-func (h *RemoteHost) ContainerFreePort(id, network, innerPort string) (string, error) {
-	return h.containerFreePort(id, network, innerPort, func(portmap nat.PortMap) (string, error) {
-		session, err := h.sshSession()
-		if err != nil {
-			return "", errors.Wrap(err, "")
-		}
-
-		defer func() {
-			_ = session.Close()
-		}()
-
-		return h.freePort(session, network, portmap)
+func (h *RemoteHost) FreePort(id, network string) (string, error) {
+	return h.baseHost.freePort(id, network, func(network string) (string, error) {
+		return h.remoteFreePort(network, nat.PortMap{})
 	})
-}
-
-func (h *RemoteHost) FreePort(network string) (string, error) {
-	e := util.StringErrorFunc("failed to get free port")
-
-	session, err := h.sshSession()
-	if err != nil {
-		return "", e(err, "")
-	}
-
-	defer func() {
-		_ = session.Close()
-	}()
-
-	return h.freePort(session, network, nat.PortMap{})
 }
 
 func (h *RemoteHost) Upload(s io.Reader, dest string, mode os.FileMode) error {
@@ -307,7 +283,18 @@ func (h *RemoteHost) sshSession() (*ssh.Session, error) {
 	return session, nil
 }
 
-func (h *RemoteHost) freePort(session *ssh.Session, network string, portmap nat.PortMap) (string, error) {
+func (h *RemoteHost) remoteFreePort(network string, portmap nat.PortMap) (string, error) {
+	e := util.StringErrorFunc("failed to get free port")
+
+	session, err := h.sshSession()
+	if err != nil {
+		return "", e(err, "")
+	}
+
+	defer func() {
+		_ = session.Close()
+	}()
+
 	var bufstdout, bufstderr bytes.Buffer
 	session.Stdout = &bufstdout
 	session.Stderr = &bufstderr
@@ -319,24 +306,22 @@ func (h *RemoteHost) freePort(session *ssh.Session, network string, portmap nat.
 	case "tcp":
 		cmd = tcpFreeportCmdF
 	default:
-		return "", errors.Errorf("unsupported network, %q", network)
+		return "", e(nil, "unsupported network, %q", network)
 	}
 
-	return h.baseHost.freePort(network, portmap, func() (string, error) {
-		bufstdout.Reset()
-		bufstderr.Reset()
+	bufstdout.Reset()
+	bufstderr.Reset()
 
-		switch err := session.Run(cmd); {
-		case err != nil:
-			return "", errors.Wrap(err, "")
-		case len(bufstderr.Bytes()) > 0:
-			return "", errors.Errorf("stderr: %q", bufstderr.String())
-		case len(bufstdout.Bytes()) < 1:
-			return "", errors.Errorf("empty output")
-		default:
-			return strings.TrimSpace(bufstdout.String()), nil
-		}
-	})
+	switch err := session.Run(cmd); {
+	case err != nil:
+		return "", e(err, "")
+	case len(bufstderr.Bytes()) > 0:
+		return "", e(nil, "stderr: %q", bufstderr.String())
+	case len(bufstdout.Bytes()) < 1:
+		return "", e(nil, "empty output")
+	default:
+		return strings.TrimSpace(bufstdout.String()), nil
+	}
 }
 
 func (h *RemoteHost) run(cmd string) (string, error) {

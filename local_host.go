@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	dockerClient "github.com/docker/docker/client"
-	"github.com/docker/go-connections/nat"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 )
@@ -69,16 +68,8 @@ func NewLocalHost(base string, dockerhost *url.URL) (*LocalHost, error) {
 	return h, nil
 }
 
-func (h *LocalHost) ContainerFreePort(id, network, innerPort string) (string, error) {
-	return h.containerFreePort(id, network, innerPort, func(portmap nat.PortMap) (string, error) {
-		return h.baseHost.freePort(network, portmap, func() (string, error) {
-			return AvailablePort(network)
-		})
-	})
-}
-
-func (h *LocalHost) FreePort(network string) (string, error) {
-	return h.baseHost.freePort(network, nat.PortMap{}, func() (string, error) {
+func (h *LocalHost) FreePort(id, network string) (string, error) {
+	return h.baseHost.freePort(id, network, func(network string) (string, error) {
 		return AvailablePort(network)
 	})
 }

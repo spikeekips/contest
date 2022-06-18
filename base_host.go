@@ -14,7 +14,6 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	dockerClient "github.com/docker/docker/client"
-	"github.com/docker/go-connections/nat"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 )
@@ -26,10 +25,10 @@ type baseHost struct {
 	addr        *url.URL
 	publishhost string
 	client      *dockerClient.Client
-	portmaps    *util.LockedMap
 	arch        elf.Machine
 	user        string
 	containers  *util.LockedMap // map[name]cid
+	ports       *util.LockedMap // map[id] port
 }
 
 func newBaseHost(base string, addr *url.URL, client *dockerClient.Client) (*baseHost, error) {
@@ -37,8 +36,8 @@ func newBaseHost(base string, addr *url.URL, client *dockerClient.Client) (*base
 		base:       filepath.Join(base, util.ULID().String()),
 		addr:       addr,
 		client:     client,
-		portmaps:   util.NewLockedMap(),
 		containers: util.NewLockedMap(),
+		ports:      util.NewLockedMap(),
 	}
 
 	if err := h.cleanContainers(true); err != nil {
@@ -147,15 +146,6 @@ func (h *baseHost) PublishHost() string {
 
 func (h *baseHost) SetPublishHost(s string) {
 	h.publishhost = s
-}
-
-func (h *baseHost) PortMap(id string) nat.PortMap {
-	i, _ := h.portmaps.Value(id)
-	if i == nil {
-		return nat.PortMap{}
-	}
-
-	return i.(nat.PortMap)
 }
 
 func (h *baseHost) Client() *dockerClient.Client {
@@ -320,73 +310,16 @@ func (h *baseHost) findContainer(ctx context.Context, name string) (string, erro
 	}
 }
 
-func (h *baseHost) containerFreePort(
-	id, network, innerPort string,
-	f func(nat.PortMap) (port string, _ error),
+func (h *baseHost) freePort( // FIXME rename to freePort
+	id, network string,
+	f func(network string) (port string, _ error),
 ) (string, error) {
-	e := util.StringErrorFunc("failed to get free container port")
-
-	var port string
-	if _, err := h.portmaps.Set(id, func(i interface{}) (interface{}, error) {
-		source, err := nat.NewPort(network, innerPort)
-		if err != nil {
-			return nil, err
-		}
-
-		var portmap nat.PortMap
-		switch {
-		case i == nil, util.IsNilLockedValue(i):
-			portmap = nat.PortMap{}
-		default:
-			portmap = i.(nat.PortMap)
-
-			if p, found := portmap[source]; found {
-				port = p[0].HostPort
-
-				return portmap, nil
-			}
-		}
-
-		if port, err = f(portmap); err != nil {
-			return nil, err
-		}
-
-		portmap[source] = []nat.PortBinding{{HostPort: port}}
-
-		return portmap, nil
-	}); err != nil {
-		return port, e(err, "failed to get free port of node")
+	i, _, err := h.ports.Get(id, func() (interface{}, error) {
+		return f(network)
+	})
+	if err != nil {
+		return "", errors.Wrap(err, "")
 	}
 
-	return port, nil
-}
-
-func (h *baseHost) freePort(
-	network string,
-	portmap nat.PortMap,
-	f func() (port string, _ error),
-) (string, error) {
-	for {
-		port, err := f()
-		if err != nil {
-			return "", errors.Wrap(err, "")
-		}
-
-		var found bool
-
-	end:
-		for i := range portmap {
-			for j := range portmap[i] {
-				if portmap[i][j].HostPort == port {
-					found = true
-
-					break end
-				}
-			}
-		}
-
-		if !found {
-			return port, nil
-		}
-	}
+	return i.(string), nil
 }

@@ -15,6 +15,7 @@ import (
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	dockerMount "github.com/docker/docker/api/types/mount"
+	"github.com/docker/docker/api/types/strslice"
 	dockerClient "github.com/docker/docker/client"
 	dockerstdcopy "github.com/docker/docker/pkg/stdcopy"
 	"github.com/nxadm/tail"
@@ -289,11 +290,11 @@ func (cmd *runCommand) prepareHosts() error {
 			}
 
 			jobch <- func(ctx context.Context, _ uint64) error {
-				if _, err := host.FreePort("tcp"); err != nil {
+				if _, err := host.FreePort("check", "tcp"); err != nil {
 					return err
 				}
 
-				if _, err := host.FreePort("udp"); err != nil {
+				if _, err := host.FreePort("check", "udp"); err != nil {
 					return err
 				}
 
@@ -465,17 +466,17 @@ func (cmd *runCommand) prepareScenario() error {
 		vars.Set(k, cmd.design.Vars[k])
 	}
 
-	vars = vars.AddFunc("nodePublishAddr", func(host contest.Host, id, network, innerport string) string {
+	vars = vars.AddFunc("freePort", func(host contest.Host, id, network string) string {
 		if host == nil {
 			return "<no value>"
 		}
 
-		port, err := host.ContainerFreePort(containerName(id), network, innerport)
+		port, err := host.FreePort(id, network)
 		if err != nil {
 			return "<no value>"
 		}
 
-		return host.PublishHost() + ":" + port
+		return port
 	})
 
 	// NOTE nodes design
@@ -872,6 +873,11 @@ func (cmd *runCommand) startRedisContainer(
 ) error {
 	e := util.StringErrorFunc("failed to start container")
 
+	port, err := h.FreePort("database-redis", "tcp")
+	if err != nil {
+		return e(err, "")
+	}
+
 	name := containerName("redis")
 
 	if err := h.RemoveContainer(ctx, name, dockerTypes.ContainerRemoveOptions{
@@ -886,13 +892,22 @@ func (cmd *runCommand) startRedisContainer(
 	config := &container.Config{
 		Hostname: name,
 		Image:    DefaultRedisImage,
+		Cmd: strslice.StrSlice{
+			"redis-server",
+			"--port",
+			port,
+		},
 	}
 
-	if err := h.CreateContainer(ctx, config, nil, nil, name); err != nil {
+	hostconfig := &container.HostConfig{
+		NetworkMode: container.NetworkMode("host"),
+	}
+
+	if err := h.CreateContainer(ctx, config, hostconfig, nil, name); err != nil {
 		return e(err, "")
 	}
 
-	if err := h.StartContainer(ctx, config, nil, nil, name, whenExit); err != nil {
+	if err := h.StartContainer(ctx, config, hostconfig, nil, name, whenExit); err != nil {
 		return e(err, "")
 	}
 
@@ -1204,7 +1219,7 @@ func (cmd *runCommand) nodeContainerConfigs(alias string, host contest.Host) (
 			Cmd:          []string{"/node-binary", "init", "config.yml", "genesis.yml"},
 		},
 		&container.HostConfig{
-			Links: []string{containerName("redis") + ":redis"},
+			NetworkMode: container.NetworkMode("host"),
 			Mounts: []dockerMount.Mount{
 				{
 					Type:   dockerMount.TypeBind,

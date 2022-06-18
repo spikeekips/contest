@@ -13,7 +13,6 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	dockerClient "github.com/docker/docker/client"
-	"github.com/docker/go-connections/nat"
 )
 
 var DefaultHostBase = "/tmp/contest" // FIXME move under cmd
@@ -48,7 +47,6 @@ type Host interface {
 	Mkdir(string, os.FileMode) error
 	Upload(io.Reader, string, os.FileMode) error
 	CollectResult(outputfile string) error
-	ContainerFreePort(string, string, string) (string, error)
 	CreateContainer(
 		_ context.Context,
 		_ *container.Config,
@@ -67,8 +65,7 @@ type Host interface {
 	StopContainer(_ context.Context, containerName string, _ *time.Duration) error
 	RemoveContainer(_ context.Context, containerName string, _ dockerTypes.ContainerRemoveOptions) error
 	ContainerLogs(_ context.Context, containerName string, _ types.ContainerLogsOptions) (io.ReadCloser, error)
-	PortMap(string) nat.PortMap
-	FreePort(string) (string, error)
+	FreePort(id, network string) (string, error)
 }
 
 func MachineToString(m elf.Machine) string {
