@@ -74,7 +74,7 @@ func (h *LocalHost) FreePort(id, network string) (string, error) {
 	})
 }
 
-func (h *LocalHost) Upload(s io.Reader, dest string, mode os.FileMode) error {
+func (h *LocalHost) Upload(s io.Reader, name, dest string, mode os.FileMode) error {
 	e := util.StringErrorFunc("failed to upload")
 
 	newdest := filepath.Join(h.base, dest)
@@ -91,6 +91,8 @@ func (h *LocalHost) Upload(s io.Reader, dest string, mode os.FileMode) error {
 	if _, err := io.Copy(f, s); err != nil {
 		return e(err, "")
 	}
+
+	h.addFile(name, newdest)
 
 	return nil
 }
@@ -173,23 +175,46 @@ func (h *LocalHost) Mkdir(dest string, mode os.FileMode) error {
 	return nil
 }
 
-func (h *LocalHost) checkArch() error {
-	e := util.StringErrorFunc("failed to check arch")
+func (h *LocalHost) RunCommand(cmd string) (string, bool, error) {
+	var e *exec.ExitError
 
+	switch out, err := h.runCommand(cmd); {
+	case err == nil:
+		return out, true, nil
+	case errors.As(err, &e):
+		return "", false, nil
+	default:
+		return "", false, errors.Wrap(err, "")
+	}
+}
+
+func (h *LocalHost) runCommand(s string) (string, error) {
 	var b bytes.Buffer
 
-	cmd := exec.Command("uname", "-sm")
+	cmd := exec.Command("bash", "-c", s)
 	cmd.Stdout = &b
 
-	if err := cmd.Run(); err != nil {
-		return e(err, "")
+	e := util.StringErrorFunc("failed to run command")
+
+	err := cmd.Run()
+	if err != nil {
+		return "", e(err, "")
 	}
 
-	uname := strings.TrimSuffix(b.String(), "\n")
+	return b.String(), nil
+}
+
+func (h *LocalHost) checkArch() error {
+	out, err := h.runCommand("uname -sm")
+	if err != nil {
+		return errors.Wrap(err, "failed to check arch")
+	}
+
+	uname := strings.TrimSuffix(out, "\n")
 
 	arch, found := supportedArchs[uname]
 	if !found {
-		return e(nil, "not supported arch, %q", uname)
+		return errors.Errorf("not supported arch, %q", uname)
 	}
 
 	h.arch = arch

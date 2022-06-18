@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -71,7 +72,7 @@ func (h *RemoteHost) FreePort(id, network string) (string, error) {
 	})
 }
 
-func (h *RemoteHost) Upload(s io.Reader, dest string, mode os.FileMode) error {
+func (h *RemoteHost) Upload(s io.Reader, name, dest string, mode os.FileMode) error {
 	session, err := h.sshSession()
 	if err != nil {
 		return err
@@ -90,9 +91,11 @@ func (h *RemoteHost) Upload(s io.Reader, dest string, mode os.FileMode) error {
 		return err
 	}
 
-	if _, err := h.run(fmt.Sprintf(`chmod 700 '%s'`, newdest)); err != nil {
+	if _, err := h.runCommand(fmt.Sprintf(`chmod 700 '%s'`, newdest)); err != nil {
 		return err
 	}
+
+	h.addFile(name, newdest)
 
 	return nil
 }
@@ -155,7 +158,7 @@ func (h *RemoteHost) Mkdir(dest string, mode os.FileMode) error {
 func (h *RemoteHost) LocalAddr() (addr netip.Addr, _ error) {
 	e := util.StringErrorFunc("failed to get local publish address")
 
-	out, err := h.run(`echo "${SSH_CONNECTION}"`)
+	out, err := h.runCommand(`echo "${SSH_CONNECTION}"`)
 	if err != nil {
 		return addr, e(err, "")
 	}
@@ -176,14 +179,14 @@ func (h *RemoteHost) LocalAddr() (addr netip.Addr, _ error) {
 func (h *RemoteHost) checkEnv() error {
 	e := util.StringErrorFunc("failed to check env")
 
-	switch s, err := h.run("id -u"); {
+	switch s, err := h.runCommand("id -u"); {
 	case err != nil:
 		return e(err, "")
 	default:
 		h.user = strings.TrimSuffix(s, "\n")
 	}
 
-	switch s, err := h.run("uname -sm"); {
+	switch s, err := h.runCommand("uname -sm"); {
 	case err != nil:
 		return e(err, "")
 	default:
@@ -324,7 +327,20 @@ func (h *RemoteHost) remoteFreePort(network string, portmap nat.PortMap) (string
 	}
 }
 
-func (h *RemoteHost) run(cmd string) (string, error) {
+func (h *RemoteHost) RunCommand(cmd string) (string, bool, error) {
+	var e *exec.ExitError
+
+	switch out, err := h.runCommand(cmd); {
+	case err == nil:
+		return out, true, nil
+	case errors.As(err, &e):
+		return "", false, nil
+	default:
+		return "", false, errors.Wrap(err, "")
+	}
+}
+
+func (h *RemoteHost) runCommand(cmd string) (string, error) {
 	session, err := h.sshSession()
 	if err != nil {
 		return "", err
@@ -335,6 +351,7 @@ func (h *RemoteHost) run(cmd string) (string, error) {
 	}()
 
 	var b bytes.Buffer
+
 	session.Stdout = &b
 
 	if err := session.Run(cmd); err != nil {

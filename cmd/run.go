@@ -5,7 +5,6 @@ import (
 	"context"
 	"debug/elf"
 	"fmt"
-	"io"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -17,8 +16,6 @@ import (
 	dockerMount "github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/strslice"
 	dockerClient "github.com/docker/docker/client"
-	dockerstdcopy "github.com/docker/docker/pkg/stdcopy"
-	"github.com/nxadm/tail"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	contest "github.com/spikeekips/contest2"
@@ -373,7 +370,7 @@ func (cmd *runCommand) prepareBinaries(host contest.Host) error {
 		_ = f.Close()
 	}()
 
-	if err := host.Upload(f, "node-binary", 0o700); err != nil {
+	if err := host.Upload(f, "cmd", "cmd", 0o700); err != nil {
 		return errors.Wrap(err, "failed to upload node binary")
 	}
 
@@ -466,6 +463,19 @@ func (cmd *runCommand) prepareScenario() error {
 		vars.Set(k, cmd.design.Vars[k])
 	}
 
+	vars = vars.AddFunc("hostFile", func(host contest.Host, f string) string {
+		if host == nil {
+			return "<no value>"
+		}
+
+		path, found := host.File(f)
+		if !found {
+			return "<no value>"
+		}
+
+		return path
+	})
+
 	vars = vars.AddFunc("freePort", func(host contest.Host, id, network string) string {
 		if host == nil {
 			return "<no value>"
@@ -529,6 +539,7 @@ func (cmd *runCommand) prepareScenario() error {
 		if err := h.Upload(
 			bytes.NewBuffer([]byte(genesis)),
 			"genesis.yml",
+			"genesis.yml",
 			0o600,
 		); err != nil {
 			return false, e(err, "")
@@ -574,6 +585,7 @@ func (cmd *runCommand) prepareScenario() error {
 
 		if err := host.Upload(
 			bytes.NewBuffer([]byte(designs[alias])),
+			"config.yml",
 			filepath.Join(alias, "config.yml"),
 			0o600,
 		); err != nil {
@@ -585,268 +597,6 @@ func (cmd *runCommand) prepareScenario() error {
 	cmd.vars = vars
 
 	return nil
-}
-
-func (cmd *runCommand) watchLogs(ctx context.Context) error {
-	expects := make([]contest.ExpectScenario, len(cmd.design.Expects))
-	copy(expects, cmd.design.Expects)
-
-	var active contest.ExpectScenario
-	var queries []bson.M
-
-	newactive := func() error {
-		active, expects = expects[0], expects[1:]
-
-		i, err := active.Compile(cmd.vars)
-		if err != nil {
-			return errors.Wrap(err, "")
-		}
-
-		active = i
-
-		q, err := cmd.compileQuery(active)
-		if err != nil {
-			return errors.Wrap(err, "")
-		}
-
-		queries = q
-
-		log.Debug().Interface("expect", active).Msg("new expect")
-
-		return nil
-	}
-
-	if err := newactive(); err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-end:
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			switch left, ok, err := cmd.evaluateLog(ctx, active, queries); {
-			case err != nil:
-				return errors.Wrap(err, "")
-			case ok:
-				if len(expects) < 1 { // NOTE finished
-					break end
-				}
-
-				queries = left
-
-				if len(queries) < 1 {
-					if err := newactive(); err != nil {
-						return errors.Wrap(err, "")
-					}
-				}
-			}
-		}
-	}
-
-	log.Info().Msg("finished")
-
-	return nil
-}
-
-func (cmd *runCommand) compileQuery(expect contest.ExpectScenario) ([]bson.M, error) {
-	var queries []bson.M
-	if len(expect.Range) < 1 {
-		condition, err := expect.CompileCondition(cmd.vars)
-		if err != nil {
-			return nil, errors.Wrap(err, "")
-		}
-
-		var query bson.M
-		if err := bson.UnmarshalExtJSON([]byte(condition), false, &query); err != nil {
-			return nil, errors.Wrap(err, "")
-		}
-
-		return []bson.M{query}, nil
-	}
-
-	for k := range expect.Range {
-		queries = make([]bson.M, len(expect.Range[k]))
-
-		for i := range expect.Range[k] {
-			n := bson.M{}
-
-			vars := cmd.vars.Clone(nil)
-			vars.Set(".self", expect.Range[k][i])
-
-			condition, err := expect.CompileCondition(vars)
-			if err != nil {
-				return nil, errors.Wrap(err, "")
-			}
-
-			var query bson.M
-			if err := bson.UnmarshalExtJSON([]byte(condition), false, &query); err != nil {
-				return nil, errors.Wrap(err, "")
-			}
-
-			for j := range query {
-				n[j] = query[j]
-			}
-
-			n[k] = expect.Range[k][i]
-
-			queries[i] = n
-		}
-
-		break
-	}
-
-	return queries, nil
-}
-
-func (cmd *runCommand) evaluateLog(ctx context.Context, expect contest.ExpectScenario, queries []bson.M) (left []bson.M, ok bool, _ error) {
-	current, err := expect.Compile(cmd.vars)
-	if err != nil {
-		return left, false, errors.Wrap(err, "")
-	}
-
-	query := queries[0]
-
-	l := log.With().Interface("query", query).Logger()
-
-	l.Debug().Msg("querying")
-
-	if len(queries) > 0 {
-		left = queries[1:]
-	}
-
-	r, found, err := cmd.db.Find(ctx, query)
-	switch {
-	case err != nil:
-		return left, false, errors.Wrap(err, "")
-	case !found:
-		return left, false, nil
-	default:
-		ok = found
-
-		l.Debug().Msg("matched")
-	}
-
-	for i := range current.Actions {
-		action := current.Actions[i]
-
-		l := log.With().Stringer("logid", util.UUID()).Logger()
-		l.Debug().Interface("action", action).Msg("trying to run action")
-
-		if err := cmd.action(ctx, action); err != nil {
-			l.Error().Err(err).Msg("failed to run action")
-
-			return left, ok, errors.Wrap(err, "")
-		}
-
-		l.Debug().Msg("action done")
-	}
-
-	for i := range current.Registers {
-		register := current.Registers[i]
-
-		l := log.With().Stringer("registerid", util.UUID()).Logger()
-		l.Debug().Interface("register", register).Msg("trying to register")
-
-		if err := cmd.register(r, register); err != nil {
-			l.Error().Err(err).Msg("failed to register")
-
-			return left, ok, errors.Wrap(err, "")
-		}
-
-		l.Debug().Msg("register done")
-	}
-
-	return left, true, nil
-}
-
-func (cmd *runCommand) register(
-	record map[string]interface{}, register contest.ScenarioRegister,
-) error {
-	cmd.vars.Set(register.Assign, record)
-
-	return nil
-}
-
-func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction) error {
-	switch action.Type {
-	case "init-nodes":
-		if len(action.Args) < 1 {
-			return errors.Errorf("empty nodes")
-		}
-
-		for i := range action.Args {
-			alias := action.Args[i]
-
-			if err := cmd.initNode(ctx, alias); err != nil {
-				return errors.Wrapf(err, "failed to init node, %q", alias)
-			}
-		}
-	case "start-nodes":
-		if len(action.Args) < 1 {
-			return errors.Errorf("empty nodes")
-		}
-
-		for i := range action.Args {
-			alias := action.Args[i]
-
-			if err := cmd.startNode(ctx, alias); err != nil {
-				return errors.Wrapf(err, "failed to start node, %q", alias)
-			}
-		}
-	case "stop-nodes":
-		if len(action.Args) < 1 {
-			return errors.Errorf("empty nodes")
-		}
-	}
-
-	return nil
-}
-
-func (cmd *runCommand) saveLogs(ctx context.Context, ch chan contest.LogEntry) {
-	var entries []contest.LogEntry
-
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	dbsavelog := func() error {
-		if len(entries) < 1 {
-			return nil
-		}
-
-		if err := cmd.db.InsertLogEntries(ctx, entries); err != nil {
-			return err
-		}
-
-		entries = nil
-
-		return nil
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case e, notclosed := <-ch:
-			if !notclosed {
-				if err := dbsavelog(); err != nil {
-					log.Error().Err(err).Msg("failed to save logs")
-				}
-
-				return
-			}
-
-			entries = append(entries, e)
-		case <-ticker.C:
-			if err := dbsavelog(); err != nil {
-				log.Error().Err(err).Msg("failed to save logs")
-			}
-		}
-	}
 }
 
 func (cmd *runCommand) checkImages(client *dockerClient.Client, images ...string) error {
@@ -934,7 +684,7 @@ func (cmd *runCommand) initNode(ctx context.Context, alias string) error {
 	}
 
 	config, hostconfig := cmd.nodeContainerConfigs(alias, host)
-	config.Cmd = []string{"/node-binary", "init", "config.yml", "genesis.yml"}
+	config.Cmd = []string{"/cmd", "init", "config.yml", "genesis.yml"}
 	hostconfig.Mounts = append(hostconfig.Mounts, dockerMount.Mount{
 		Type:   dockerMount.TypeBind,
 		Source: filepath.Join(host.Base(), "genesis.yml"),
@@ -1117,92 +867,6 @@ func (cmd *runCommand) startNode(ctx context.Context, alias string) error {
 	return nil
 }
 
-func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) error {
-	name := containerName(alias)
-
-	host := cmd.hosts.HostByContainer(name)
-	if host == nil {
-		return errors.Errorf("host not found")
-	}
-
-	openfiles := func(fname string) (io.WriteCloser, *tail.Tail, error) {
-		f, err := os.OpenFile(fname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		t, err := tail.TailFile(fname, tail.Config{Follow: true})
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return f, t, nil
-	}
-
-	logstdoutfilename := filepath.Join(cmd.basedir, alias+".stdout.log")
-	logstderrfilename := filepath.Join(cmd.basedir, alias+".stderr.log")
-
-	outf, outt, err := openfiles(logstdoutfilename)
-	if err != nil {
-		return err
-	}
-
-	errf, errt, err := openfiles(logstderrfilename)
-	if err != nil {
-		return err
-	}
-
-	r, err := host.ContainerLogs(ctx, name, dockerTypes.ContainerLogsOptions{
-		ShowStdout: true, ShowStderr: true,
-		Follow: true, Tail: "all",
-	})
-	if err != nil {
-		return err
-	}
-
-	go func() {
-		defer func() {
-			_ = r.Close()
-			_ = outf.Close()
-			_ = errf.Close()
-		}()
-
-		if _, err := dockerstdcopy.StdCopy(outf, errf, r); err != nil {
-			log.Debug().Err(err).Str("container", name).Msg("saving container logs stopped")
-		}
-	}()
-
-	savetail := func(t *tail.Tail, stderr bool) {
-		for l := range t.Lines {
-			if ctx.Err() != nil {
-				break
-			}
-
-			if l.Err != nil {
-				cmd.logch <- contest.NewInternalLogEntry("tail error", l.Err)
-			}
-
-			if len(l.Text) > 0 {
-				if e := log.Trace(); e.Enabled() {
-					e.Str("node", alias).Str("text", l.Text).Msg("new log text")
-				}
-
-				switch entry, err := contest.NewNodeLogEntry(alias, stderr, []byte(l.Text)); {
-				case err != nil:
-					log.Error().Err(err).Str("node", alias).Str("text", l.Text).Msg("wrong node log")
-				default:
-					cmd.logch <- entry
-				}
-			}
-		}
-	}
-
-	go savetail(outt, false)
-	go savetail(errt, true)
-
-	return nil
-}
-
 func (cmd *runCommand) nodeContainerConfigs(alias string, host contest.Host) (
 	*container.Config,
 	*container.HostConfig,
@@ -1216,15 +880,15 @@ func (cmd *runCommand) nodeContainerConfigs(alias string, host contest.Host) (
 			AttachStdout: true,
 			AttachStderr: true,
 			WorkingDir:   "/data",
-			Cmd:          []string{"/node-binary", "init", "config.yml", "genesis.yml"},
+			Cmd:          []string{"/cmd", "init", "config.yml", "genesis.yml"},
 		},
 		&container.HostConfig{
 			NetworkMode: container.NetworkMode("host"),
 			Mounts: []dockerMount.Mount{
 				{
 					Type:   dockerMount.TypeBind,
-					Source: filepath.Join(host.Base(), "node-binary"),
-					Target: "/node-binary",
+					Source: filepath.Join(host.Base(), "cmd"),
+					Target: "/cmd",
 				},
 				{
 					Type:   dockerMount.TypeBind,

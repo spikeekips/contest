@@ -42,10 +42,11 @@ type Host interface {
 	PublishHost() string
 	SetPublishHost(string)
 	Base() string
+	File(name string) (path string, found bool)
 	Close() error
 	Client() *dockerClient.Client
 	Mkdir(string, os.FileMode) error
-	Upload(io.Reader, string, os.FileMode) error
+	Upload(_ io.Reader, name, dest string, _ os.FileMode) error
 	CollectResult(outputfile string) error
 	CreateContainer(
 		_ context.Context,
@@ -66,6 +67,7 @@ type Host interface {
 	RemoveContainer(_ context.Context, containerName string, _ dockerTypes.ContainerRemoveOptions) error
 	ContainerLogs(_ context.Context, containerName string, _ types.ContainerLogsOptions) (io.ReadCloser, error)
 	FreePort(id, network string) (string, error)
+	RunCommand(string) (string, bool, error)
 }
 
 func MachineToString(m elf.Machine) string {

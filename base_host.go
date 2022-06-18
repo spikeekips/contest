@@ -27,8 +27,9 @@ type baseHost struct {
 	client      *dockerClient.Client
 	arch        elf.Machine
 	user        string
-	containers  *util.LockedMap // map[name]cid
-	ports       *util.LockedMap // map[id] port
+	containers  *util.LockedMap               // map[name]cid
+	ports       *util.LockedMap               // map[id] port
+	files       map[string] /* name */ string /* path */
 }
 
 func newBaseHost(base string, addr *url.URL, client *dockerClient.Client) (*baseHost, error) {
@@ -38,6 +39,7 @@ func newBaseHost(base string, addr *url.URL, client *dockerClient.Client) (*base
 		client:     client,
 		containers: util.NewLockedMap(),
 		ports:      util.NewLockedMap(),
+		files:      map[string]string{},
 	}
 
 	if err := h.cleanContainers(true); err != nil {
@@ -322,4 +324,14 @@ func (h *baseHost) freePort( // FIXME rename to freePort
 	}
 
 	return i.(string), nil
+}
+
+func (h *baseHost) addFile(name string, path string) {
+	h.files[name] = path
+}
+
+func (h *baseHost) File(name string) (string, bool) {
+	path, found := h.files[name]
+
+	return path, found
 }
