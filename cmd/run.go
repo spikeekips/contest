@@ -181,6 +181,10 @@ func (cmd *runCommand) prepare() error {
 		return errors.Wrap(err, "")
 	}
 
+	if err := cmd.prepareDesign(); err != nil {
+		return errors.Wrap(err, "")
+	}
+
 	if err := cmd.prepareHosts(); err != nil {
 		return errors.Wrap(err, "")
 	}
@@ -234,7 +238,12 @@ func (cmd *runCommand) prepareFlags() error {
 func (cmd *runCommand) prepareHosts() error {
 	e := util.StringErrorFunc("failed to prepare hosts")
 
-	cmd.hosts = contest.NewHosts()
+	samehost := make([]string, len(cmd.design.Nodes.SameHost))
+	for i := range cmd.design.Nodes.SameHost {
+		samehost[i] = containerName(cmd.design.Nodes.SameHost[i])
+	}
+
+	cmd.hosts = contest.NewHosts(samehost)
 
 	for i := range cmd.Hosts {
 		h := cmd.Hosts[i]
@@ -436,15 +445,15 @@ func (cmd *runCommand) prepareLogs() error {
 	return nil
 }
 
-func (cmd *runCommand) prepareScenario() error {
-	e := util.StringErrorFunc("failed to load scenario")
+func (cmd *runCommand) prepareDesign() error {
+	e := util.StringErrorFunc("failed to load design")
 
 	i, err := os.ReadFile(cmd.Design)
 	if err != nil {
 		return e(err, "")
 	}
 
-	log.Debug().Str("content", string(i)).Msg("scenario")
+	log.Debug().Str("content", string(i)).Msg("design")
 
 	if err := yaml.Unmarshal([]byte(i), &cmd.design); err != nil {
 		return e(err, "")
@@ -453,6 +462,12 @@ func (cmd *runCommand) prepareScenario() error {
 	if err := cmd.design.IsValid(nil); err != nil {
 		return e(err, "")
 	}
+
+	return nil
+}
+
+func (cmd *runCommand) prepareScenario() error {
+	e := util.StringErrorFunc("failed to load scenario")
 
 	log.Debug().Interface("scenario", cmd.design).Msg("scenario loaded")
 
@@ -491,10 +506,6 @@ func (cmd *runCommand) prepareScenario() error {
 
 	// NOTE nodes design
 	designs := map[string]string{}
-
-	if _, err := cmd.hosts.NewContainer(containerName("redis")); err != nil {
-		return e(err, "")
-	}
 
 	nodes := cmd.design.NodeDesigns.AllNodes()
 
@@ -894,6 +905,11 @@ func (cmd *runCommand) nodeContainerConfigs(alias string, host contest.Host) (
 					Type:   dockerMount.TypeBind,
 					Source: filepath.Join(host.Base(), alias),
 					Target: "/data",
+				},
+				{
+					Type:   dockerMount.TypeBind,
+					Source: host.Base(),
+					Target: "/host",
 				},
 			},
 		}

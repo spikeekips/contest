@@ -4,10 +4,12 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/util"
 )
 
 type Hosts struct {
 	sync.Mutex
+	samehost         []string
 	hostids          []string
 	hosts            map[string]Host
 	hostsbycontainer map[string]Host
@@ -15,8 +17,9 @@ type Hosts struct {
 	lastused         int
 }
 
-func NewHosts() *Hosts {
+func NewHosts(samehost []string) *Hosts {
 	return &Hosts{
+		samehost:         samehost,
 		hosts:            map[string]Host{},
 		hostsbycontainer: map[string]Host{},
 		containersbyhost: map[string][]string{},
@@ -50,7 +53,7 @@ func (h *Hosts) New(ho Host) error {
 }
 
 func (h *Hosts) NewContainer(cid string) (Host, error) {
-	ho := h.findHost()
+	ho := h.assignHost(cid)
 	if ho == nil {
 		return nil, errors.Errorf("failed to find host")
 	}
@@ -99,12 +102,25 @@ func (h *Hosts) TraverseByHost(f func(_ Host, cids []string) (bool, error)) erro
 	return nil
 }
 
-func (h *Hosts) findHost() Host {
+func (h *Hosts) assignHost(cid string) Host {
 	h.Lock()
 	defer h.Unlock()
 
 	if len(h.hostids) < 1 {
 		return nil
+	}
+
+	if util.InStringSlice(cid, h.samehost) {
+		for i := range h.samehost {
+			s := h.samehost[i]
+			if s == cid {
+				continue
+			}
+
+			if h, found := h.hostsbycontainer[s]; found {
+				return h
+			}
+		}
 	}
 
 	index := h.lastused + 1

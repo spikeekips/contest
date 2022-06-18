@@ -15,6 +15,7 @@ type Design struct {
 	NodeDesigns                     NodeDesigns            `yaml:"designs"`
 	Expects                         []ExpectScenario       `yaml:"expects"`
 	IgnoreWhenAbnormalContainerExit bool                   `yaml:"ignore_abnormal_container_exit"`
+	Nodes                           NodesDesign            `yaml:"nodes"`
 }
 
 func (s Design) IsValid(b []byte) error {
@@ -32,6 +33,12 @@ func (s Design) IsValid(b []byte) error {
 		if err := s.Expects[i].IsValid(b); err != nil {
 			return e(err, "")
 		}
+	}
+
+	if _, found := util.CheckSliceDuplicated(s.Nodes.SameHost, func(i interface{}) string {
+		return i.(string)
+	}); found {
+		return e(nil, "duplicated nodes found")
 	}
 
 	return nil
@@ -249,6 +256,10 @@ func (s ScenarioRegister) Compile(vars *Vars) (newregister ScenarioRegister, err
 	}
 
 	return newregister, nil
+}
+
+type NodesDesign struct {
+	SameHost []string `yaml:"same_host"`
 }
 
 var reNodeAlias = regexp.MustCompile(`^no\d+$`)

@@ -196,7 +196,7 @@ func (cmd *runCommand) evaluateLog(ctx context.Context, expect contest.ExpectSce
 	default:
 		ok = found
 
-		l.Debug().Msg("matched")
+		l.Trace().Interface("out", r).Msg("matched")
 	}
 
 	for i := range current.Actions {
