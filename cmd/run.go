@@ -89,10 +89,25 @@ func (cmd *runCommand) Run() error {
 
 	cmd.logch = make(chan contest.LogEntry)
 
-	go cmd.saveLogs(ctx, cmd.logch)
+	w := contest.NewWatchLogs(
+		cmd.design.Expects,
+		cmd.logch,
+		nil,
+		cmd.vars,
+		func(id string) contest.Host {
+			return cmd.hosts.HostByContainer(containerName(id))
+		},
+		func(ctx context.Context, m bson.M) (interface{}, bool, error) {
+			return cmd.db.Find(ctx, m)
+		},
+		cmd.action,
+		cmd.db.InsertLogEntries,
+	)
+
+	_ = w.SetLogging(logging)
 
 	go func() {
-		cmd.exitch <- cmd.watchLogs(ctx)
+		cmd.exitch <- <-w.Wait(ctx)
 	}()
 
 	cmd.logch <- contest.NewInternalLogEntry("contest ready", nil)
