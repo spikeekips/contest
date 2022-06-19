@@ -147,22 +147,19 @@ func (w *WatchLogs) compileConditionQueries(expect ExpectScenario) (queries []Co
 		return []ConditionQuery{query}, nil
 	}
 
-	for k := range expect.Range {
-		queries = make([]ConditionQuery, len(expect.Range[k]))
+	rv := expect.RangeValues()
 
-		for i := range expect.Range[k] {
-			vars := w.vars.Clone(nil)
-			vars.Set(".self.range."+k, expect.Range[k][i])
+	queries = make([]ConditionQuery, len(rv))
+	for i := range rv {
+		vars := w.vars.Clone(nil)
+		vars.Set(".self.range", rv[i])
 
-			query, err := w.compileConditionQuery(expect.Condition, vars)
-			if err != nil {
-				return nil, errors.Wrap(err, "")
-			}
-
-			queries[i] = query
+		query, err := w.compileConditionQuery(expect.Condition, vars)
+		if err != nil {
+			return nil, errors.Wrap(err, "")
 		}
 
-		break
+		queries[i] = query
 	}
 
 	return queries, nil

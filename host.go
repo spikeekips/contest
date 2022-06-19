@@ -15,8 +15,6 @@ import (
 	dockerClient "github.com/docker/docker/client"
 )
 
-var DefaultHostBase = "/tmp/contest" // FIXME move under cmd
-
 var supportedArchs = map[string]elf.Machine{
 	"Linux x86_64":  elf.EM_X86_64,
 	"Linux aarch64": elf.EM_AARCH64,

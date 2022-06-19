@@ -13,41 +13,6 @@ import (
 	contest "github.com/spikeekips/contest2"
 )
 
-func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction) error {
-	switch action.Type {
-	case "init-nodes":
-		if len(action.Args) < 1 {
-			return errors.Errorf("empty nodes")
-		}
-
-		for i := range action.Args {
-			alias := action.Args[i]
-
-			if err := cmd.initNode(ctx, alias); err != nil {
-				return errors.Wrapf(err, "failed to init node, %q", alias)
-			}
-		}
-	case "start-nodes":
-		if len(action.Args) < 1 {
-			return errors.Errorf("empty nodes")
-		}
-
-		for i := range action.Args {
-			alias := action.Args[i]
-
-			if err := cmd.startNode(ctx, alias); err != nil {
-				return errors.Wrapf(err, "failed to start node, %q", alias)
-			}
-		}
-	case "stop-nodes":
-		if len(action.Args) < 1 {
-			return errors.Errorf("empty nodes")
-		}
-	}
-
-	return nil
-}
-
 func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) error {
 	name := containerName(alias)
 
@@ -99,7 +64,9 @@ func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) erro
 		}()
 
 		if _, err := dockerstdcopy.StdCopy(outf, errf, r); err != nil {
-			log.Debug().Err(err).Str("container", name).Msg("saving container logs stopped")
+			if !errors.Is(err, context.Canceled) {
+				log.Debug().Err(err).Str("container", name).Msg("saving container logs stopped")
+			}
 		}
 	}()
 

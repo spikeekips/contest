@@ -211,10 +211,6 @@ func (h *baseHost) StartContainer(
 		return e(err, "")
 	}
 
-	if len(cid) < 1 {
-		return e(util.ErrNotFound.Errorf("container not found"), "")
-	}
-
 	if err := h.client.ContainerStart(ctx, cid, dockerTypes.ContainerStartOptions{}); err != nil {
 		return e(err, "")
 	}
@@ -306,13 +302,13 @@ func (h *baseHost) ContainerLogs(
 func (h *baseHost) findContainer(ctx context.Context, name string) (string, error) {
 	switch i, found := h.containers.Value(name); {
 	case !found:
-		return "", nil
+		return "", util.ErrNotFound.Errorf("container not found")
 	default:
 		return i.(string), nil
 	}
 }
 
-func (h *baseHost) freePort( // FIXME rename to freePort
+func (h *baseHost) freePort(
 	id, network string,
 	f func(network string) (port string, _ error),
 ) (string, error) {

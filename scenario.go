@@ -118,10 +118,10 @@ func (s NodeDesigns) AllNodes() []string {
 }
 
 type ExpectScenario struct {
-	Condition string              `yaml:"condition"`
-	Range     map[string][]string `yaml:"range"`
-	Actions   []ScenarioAction    `yaml:"actions"`
-	Registers []ScenarioRegister  `yaml:"registers"`
+	Condition string                `yaml:"condition"`
+	Range     []map[string][]string `yaml:"range"`
+	Actions   []ScenarioAction      `yaml:"actions"`
+	Registers []ScenarioRegister    `yaml:"registers"`
 }
 
 func (s ExpectScenario) IsValid(b []byte) error {
@@ -146,23 +146,45 @@ func (s ExpectScenario) IsValid(b []byte) error {
 	return nil
 }
 
-func (s ExpectScenario) CompileCondition(vars *Vars) (string, error) { // FIXME return compiled string
-	c, err := CompileTemplate(s.Condition, vars, nil)
-	if err != nil {
-		return "", errors.Wrap(err, "")
+func (s ExpectScenario) RangeValues() []map[string]interface{} {
+	if len(s.Range) < 1 {
+		return nil
 	}
 
-	return c, nil
+	var l int
+
+	for i := range s.Range {
+		for k := range s.Range[i] {
+			l = len(s.Range[i][k])
+
+			break
+		}
+
+		break
+	}
+
+	ms := make([]map[string]interface{}, l)
+
+	for index := range make([]int, l) {
+		m := map[string]interface{}{}
+
+		for i := range s.Range {
+			for k := range s.Range[i] {
+				m[k] = s.Range[i][k][index]
+			}
+		}
+
+		ms[index] = m
+	}
+
+	return ms
 }
 
 func (s ExpectScenario) Compile(vars *Vars) (newexpect ExpectScenario, err error) {
 	newexpect.Condition = s.Condition
 	newexpect.Actions = make([]ScenarioAction, len(s.Actions))
 	for i := range s.Actions {
-		newexpect.Actions[i], err = s.Actions[i].Compile(vars)
-		if err != nil {
-			return newexpect, errors.Wrap(err, "")
-		}
+		newexpect.Actions[i] = s.Actions[i]
 	}
 
 	newexpect.Registers = make([]ScenarioRegister, len(s.Registers))
@@ -174,19 +196,28 @@ func (s ExpectScenario) Compile(vars *Vars) (newexpect ExpectScenario, err error
 	}
 
 	if len(s.Range) > 0 {
-		newexpect.Range = map[string][]string{}
+		newexpect.Range = make([]map[string][]string, len(s.Range))
 
 		for i := range s.Range {
-			newexpect.Range[i] = make([]string, len(s.Range[i]))
+			r := s.Range[i]
 
-			for j := range s.Range[i] {
-				r, err := CompileTemplate(s.Range[i][j], vars, nil)
-				if err != nil {
-					return newexpect, errors.Wrap(err, "")
+			m := map[string][]string{}
+
+			for k := range r {
+				v := make([]string, len(r[k]))
+				for j := range r[k] {
+					c, err := CompileTemplate(r[k][j], vars, nil)
+					if err != nil {
+						return newexpect, errors.Wrap(err, "")
+					}
+
+					v[j] = c
 				}
 
-				newexpect.Range[i][j] = r
+				m[k] = v
 			}
+
+			newexpect.Range[i] = m
 		}
 	}
 
@@ -194,8 +225,9 @@ func (s ExpectScenario) Compile(vars *Vars) (newexpect ExpectScenario, err error
 }
 
 type ScenarioAction struct {
-	Type string   `yaml:"type"`
-	Args []string `yaml:"args"`
+	Type  string                `yaml:"type"`
+	Args  []string              `yaml:"args"`
+	Range []map[string][]string `yaml:"range"`
 }
 
 func (s ScenarioAction) IsValid([]byte) error {
@@ -206,23 +238,54 @@ func (s ScenarioAction) IsValid([]byte) error {
 		return e(nil, "empty type")
 	}
 
-	// FIXME check type is known
-
 	return nil
 }
 
-func (s ScenarioAction) Compile(vars *Vars) (newaction ScenarioAction, err error) {
-	newaction.Type = s.Type
+func (s ScenarioAction) RangeValues() []map[string]interface{} {
+	if len(s.Range) < 1 {
+		return nil
+	}
 
-	newaction.Args = make([]string, len(s.Args))
+	var l int
+
+	for i := range s.Range {
+		for k := range s.Range[i] {
+			l = len(s.Range[i][k])
+
+			break
+		}
+
+		break
+	}
+
+	ms := make([]map[string]interface{}, l)
+
+	for index := range make([]int, l) {
+		m := map[string]interface{}{}
+
+		for i := range s.Range {
+			for k := range s.Range[i] {
+				m[k] = s.Range[i][k][index]
+			}
+		}
+
+		ms[index] = m
+	}
+
+	return ms
+}
+
+func (s ScenarioAction) CompileArgs(vars *Vars) (args []string, err error) {
+	args = make([]string, len(s.Args))
+
 	for i := range s.Args {
-		newaction.Args[i], err = CompileTemplate(s.Args[i], vars, nil)
+		args[i], err = CompileTemplate(s.Args[i], vars, nil)
 		if err != nil {
-			return newaction, errors.Wrap(err, "")
+			return nil, errors.Wrap(err, "")
 		}
 	}
 
-	return newaction, nil
+	return args, nil
 }
 
 type ScenarioRegister struct {
@@ -241,8 +304,6 @@ func (s ScenarioRegister) IsValid([]byte) error {
 	case strings.HasSuffix(s.Assign, "."):
 		return e(nil, "wrong assign format; must not end with `.`")
 	}
-
-	// FIXME check type is known
 
 	return nil
 }
