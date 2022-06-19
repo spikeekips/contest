@@ -94,6 +94,21 @@ func (cmd *runCommand) runNode(ctx context.Context, alias string, args []string)
 		return e(nil, "host not found")
 	}
 
+	{
+		cid, found, err := host.ExistsContainer(ctx, name)
+		fmt.Println(">>>>>>>>>>>>>>>>>>>")
+		fmt.Println(">>>>>>>>>>>>>>>>>>>")
+		fmt.Println(">>>>>>>>>>>>>>>>>>>")
+		fmt.Println(">>>>>>>>>>>>>>>>>>>")
+		fmt.Println(">>>>>>>>>>>>>>>>>>>")
+		fmt.Println(">>>>>>>>>>>>>>>>>>>")
+		fmt.Println(">>>>>>>>>>>>>>>>>>>")
+		fmt.Println(">>>>>>>>>>>>>>>>>>>")
+		fmt.Println(">>>>>>>>>>>>>>>>>>>")
+		fmt.Println(">>>>>>>>>>>>>>>>>>>")
+		fmt.Println(">>>>>>>>>>>>>>>>>>>", cid, found, err)
+	}
+
 	if err := host.RemoveContainer(ctx, name, dockerTypes.ContainerRemoveOptions{
 		RemoveVolumes: true,
 		Force:         true,
@@ -165,6 +180,21 @@ func (cmd *runCommand) runNode(ctx context.Context, alias string, args []string)
 
 	if err := cmd.saveContainerLogs(ctx, alias); err != nil {
 		return e(err, "")
+	}
+
+	{
+		cid, found, err := host.ExistsContainer(ctx, name)
+		fmt.Println("<<<<<<<<<<<<<<<<<<<")
+		fmt.Println("<<<<<<<<<<<<<<<<<<<")
+		fmt.Println("<<<<<<<<<<<<<<<<<<<")
+		fmt.Println("<<<<<<<<<<<<<<<<<<<")
+		fmt.Println("<<<<<<<<<<<<<<<<<<<")
+		fmt.Println("<<<<<<<<<<<<<<<<<<<")
+		fmt.Println("<<<<<<<<<<<<<<<<<<<")
+		fmt.Println("<<<<<<<<<<<<<<<<<<<")
+		fmt.Println("<<<<<<<<<<<<<<<<<<<")
+		fmt.Println("<<<<<<<<<<<<<<<<<<<")
+		fmt.Println("<<<<<<<<<<<<<<<<<<<", cid, found, err)
 	}
 
 	return nil
