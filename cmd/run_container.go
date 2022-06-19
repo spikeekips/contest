@@ -94,21 +94,6 @@ func (cmd *runCommand) runNode(ctx context.Context, alias string, args []string)
 		return e(nil, "host not found")
 	}
 
-	{
-		cid, found, err := host.ExistsContainer(ctx, name)
-		fmt.Println(">>>>>>>>>>>>>>>>>>>")
-		fmt.Println(">>>>>>>>>>>>>>>>>>>")
-		fmt.Println(">>>>>>>>>>>>>>>>>>>")
-		fmt.Println(">>>>>>>>>>>>>>>>>>>")
-		fmt.Println(">>>>>>>>>>>>>>>>>>>")
-		fmt.Println(">>>>>>>>>>>>>>>>>>>")
-		fmt.Println(">>>>>>>>>>>>>>>>>>>")
-		fmt.Println(">>>>>>>>>>>>>>>>>>>")
-		fmt.Println(">>>>>>>>>>>>>>>>>>>")
-		fmt.Println(">>>>>>>>>>>>>>>>>>>")
-		fmt.Println(">>>>>>>>>>>>>>>>>>>", cid, found, err)
-	}
-
 	if err := host.RemoveContainer(ctx, name, dockerTypes.ContainerRemoveOptions{
 		RemoveVolumes: true,
 		Force:         true,
@@ -121,8 +106,13 @@ func (cmd *runCommand) runNode(ctx context.Context, alias string, args []string)
 	config, hostconfig := cmd.nodeContainerConfigs(alias, host)
 	config.Cmd = args
 
-	if err := host.CreateContainer(ctx, config, hostconfig, nil, name); err != nil {
+	switch _, _, found, err := host.ExistsContainer(ctx, name); {
+	case err != nil:
 		return e(err, "")
+	case !found:
+		if err := host.CreateContainer(ctx, config, hostconfig, nil, name); err != nil {
+			return e(err, "")
+		}
 	}
 
 	if err := host.StartContainer(
@@ -182,21 +172,6 @@ func (cmd *runCommand) runNode(ctx context.Context, alias string, args []string)
 		return e(err, "")
 	}
 
-	{
-		cid, found, err := host.ExistsContainer(ctx, name)
-		fmt.Println("<<<<<<<<<<<<<<<<<<<")
-		fmt.Println("<<<<<<<<<<<<<<<<<<<")
-		fmt.Println("<<<<<<<<<<<<<<<<<<<")
-		fmt.Println("<<<<<<<<<<<<<<<<<<<")
-		fmt.Println("<<<<<<<<<<<<<<<<<<<")
-		fmt.Println("<<<<<<<<<<<<<<<<<<<")
-		fmt.Println("<<<<<<<<<<<<<<<<<<<")
-		fmt.Println("<<<<<<<<<<<<<<<<<<<")
-		fmt.Println("<<<<<<<<<<<<<<<<<<<")
-		fmt.Println("<<<<<<<<<<<<<<<<<<<")
-		fmt.Println("<<<<<<<<<<<<<<<<<<<", cid, found, err)
-	}
-
 	return nil
 }
 
@@ -210,8 +185,12 @@ func (cmd *runCommand) stopNodes(ctx context.Context, alias string, _ []string) 
 		return e(nil, "host not found")
 	}
 
-	if err := host.StopContainer(ctx, name, nil); err != nil {
-		if !errors.Is(err, util.ErrNotFound) {
+	switch _, info, found, err := host.ExistsContainer(ctx, name); {
+	case err != nil:
+		return e(err, "")
+	case !found:
+	case info == "running", info == "restarting":
+		if err := host.StopContainer(ctx, name, nil); err != nil {
 			return e(err, "")
 		}
 	}

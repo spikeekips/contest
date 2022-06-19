@@ -154,15 +154,17 @@ func (h *baseHost) Client() *dockerClient.Client {
 	return h.client
 }
 
-func (h *baseHost) ExistsContainer(ctx context.Context, name string) (cid string, found bool, _ error) {
+func (h *baseHost) ExistsContainer(ctx context.Context, name string) (cid, info string, found bool, _ error) {
 	i, found := h.containers.Value(name)
 	if !found {
-		return cid, false, nil
+		return cid, info, false, nil
 	}
+
+	cid = i.(string)
 
 	l, err := h.client.ContainerList(ctx, dockerTypes.ContainerListOptions{All: true})
 	if err != nil {
-		return cid, false, errors.Wrap(err, "")
+		return cid, info, false, errors.Wrap(err, "")
 	}
 
 end:
@@ -171,8 +173,8 @@ end:
 
 		for j := range c.Names {
 			if strings.HasPrefix(c.Names[j], "/"+name) {
-				fmt.Println(">>>>>>>>", c.Status)
-				cid = c.ID
+				info = c.State // NOTE one of "created", "running", "paused",
+				// "restarting", "removing", "exited", or "dead"
 
 				found = true
 
@@ -181,7 +183,7 @@ end:
 		}
 	}
 
-	return cid, found, nil
+	return cid, info, found, nil
 }
 
 func (h *baseHost) CreateContainer(

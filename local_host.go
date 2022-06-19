@@ -79,16 +79,16 @@ func (h *LocalHost) Upload(s io.Reader, name, dest string, mode os.FileMode) err
 
 	newdest := filepath.Join(h.base, dest)
 
-	f, err := os.OpenFile(newdest, os.O_WRONLY|os.O_CREATE, mode)
+	n, err := os.OpenFile(newdest, os.O_WRONLY|os.O_CREATE, mode)
 	if err != nil {
 		return e(err, "failed to create upload dest file for %q", newdest)
 	}
 
 	defer func() {
-		_ = f.Close()
+		_ = n.Close()
 	}()
 
-	if _, err := io.Copy(f, s); err != nil {
+	if _, err := io.Copy(n, s); err != nil {
 		return e(err, "")
 	}
 

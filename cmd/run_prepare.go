@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"debug/elf"
 	"fmt"
@@ -137,23 +136,19 @@ func (cmd *runCommand) prepareHosts() error {
 					return err
 				}
 
-				return nil
-			}
-
-			jobch <- func(ctx context.Context, _ uint64) error {
-				if err := cmd.checkImages(host.Client(), DefaultNodeImage, DefaultRedisImage); err != nil {
-					return err
-				}
-
-				return nil
-			}
-
-			jobch <- func(ctx context.Context, _ uint64) error {
 				if _, err := host.FreePort("check", "tcp"); err != nil {
 					return err
 				}
 
 				if _, err := host.FreePort("check", "udp"); err != nil {
+					return err
+				}
+
+				return nil
+			}
+
+			jobch <- func(ctx context.Context, _ uint64) error {
+				if err := cmd.checkImages(host.Client(), DefaultNodeImage, DefaultRedisImage); err != nil {
 					return err
 				}
 
@@ -174,13 +169,16 @@ func (cmd *runCommand) prepareHosts() error {
 }
 
 func (cmd *runCommand) prepareBinaries(host contest.Host) error {
-	j, found := cmd.nodeBinaries[host.Arch()]
+	i, found := cmd.nodeBinaries[host.Arch()]
 	if !found {
 		return errors.Errorf("node binary does not support target host arch, %q",
 			contest.MachineToString(host.Arch()))
 	}
 
-	f, _ := os.Open(j)
+	f, err := os.Open(i)
+	if err != nil {
+		return errors.Wrap(err, "")
+	}
 
 	defer func() {
 		_ = f.Close()
@@ -353,13 +351,18 @@ func (cmd *runCommand) prepareScenario() error {
 		return e(err, "failed to compile genesis design")
 	}
 
+	genesisfile := filepath.Join(cmd.basedir, "genesis.yml")
+	f, err := os.OpenFile(genesisfile, os.O_WRONLY|os.O_CREATE, 0o600)
+	if err != nil {
+		return errors.Wrapf(err, "failed to create genesis file for %q", genesisfile)
+	}
+
+	if _, err := f.WriteString(genesis); err != nil {
+		return errors.Wrapf(err, "failed to create genesis file for %q", genesisfile)
+	}
+
 	if err := cmd.hosts.TraverseByHost(func(h contest.Host, _ []string) (bool, error) {
-		if err := h.Upload(
-			bytes.NewBuffer([]byte(genesis)),
-			"genesis.yml",
-			"genesis.yml",
-			0o600,
-		); err != nil {
+		if err := h.Upload(strings.NewReader(genesis), "genesis.yml", "genesis.yml", 0o600); err != nil {
 			return false, e(err, "")
 		}
 
@@ -401,12 +404,7 @@ func (cmd *runCommand) prepareScenario() error {
 			return e(err, "")
 		}
 
-		if err := host.Upload(
-			bytes.NewBuffer([]byte(designs[alias])),
-			"config.yml",
-			filepath.Join(alias, "config.yml"),
-			0o600,
-		); err != nil {
+		if err := host.Upload(strings.NewReader(designs[alias]), "config.yml", filepath.Join(alias, "config.yml"), 0o600); err != nil {
 			return e(err, "")
 		}
 

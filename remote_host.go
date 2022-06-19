@@ -2,6 +2,7 @@ package contest
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	dockerClient "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
@@ -38,6 +40,7 @@ type RemoteHost struct {
 	sync.Mutex
 	*baseHost
 	savedsshclient *ssh.Client
+	savedsshconn   ssh.Conn
 }
 
 func NewRemoteHost(base string, dockerhost *url.URL) (*RemoteHost, error) {
@@ -66,6 +69,14 @@ func NewRemoteHost(base string, dockerhost *url.URL) (*RemoteHost, error) {
 	return h, nil
 }
 
+func (h *RemoteHost) Close() error {
+	if h.savedsshconn != nil {
+		_ = h.savedsshconn.Close()
+	}
+
+	return h.baseHost.Close()
+}
+
 func (h *RemoteHost) FreePort(id, network string) (string, error) {
 	return h.baseHost.freePort(id, network, func(network string) (string, error) {
 		return h.remoteFreePort(network, nat.PortMap{})
@@ -73,31 +84,85 @@ func (h *RemoteHost) FreePort(id, network string) (string, error) {
 }
 
 func (h *RemoteHost) Upload(s io.Reader, name, dest string, mode os.FileMode) error {
-	session, err := h.sshSession()
-	if err != nil {
-		return err
-	}
+	e := util.StringErrorFunc("failed to upload file")
 
 	newdest := filepath.Join(h.base, dest)
 
-	// NOTE golang's sftp is too slow
-	session.Stdin = s
+	var origr io.ReadSeeker
+	var buf bytes.Buffer
 
-	defer func() {
-		_ = session.Close()
-	}()
+	nr := io.TeeReader(s, &buf)
 
-	if err := session.Run(fmt.Sprintf(`cat - > '%s'`, newdest)); err != nil {
-		return err
+	if err := util.Retry(context.Background(), func() (bool, error) {
+		if origr != nil {
+			if _, err := origr.Seek(0, 0); err != nil {
+				return false, err
+			}
+
+			nr = origr
+		}
+
+		if err := h.upload(nr, name, newdest); err != nil {
+			if origr == nil {
+				_, _ = io.ReadAll(nr)
+
+				origr = bytes.NewReader(buf.Bytes())
+			}
+
+			return true, err
+		}
+
+		return false, nil
+	}, 3, time.Second); err != nil {
+		return e(err, "")
 	}
 
-	if _, err := h.runCommand(fmt.Sprintf(`chmod 700 '%s'`, newdest)); err != nil {
-		return err
+	if _, err := h.runCommand(fmt.Sprintf(`chmod %o '%s'`, mode, newdest)); err != nil {
+		return e(err, "")
 	}
 
 	h.addFile(name, newdest)
 
 	return nil
+}
+
+func (h *RemoteHost) upload(s io.Reader, name, dest string) error {
+	session, err := h.sshSession()
+	if err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	defer func() {
+		_ = session.Close()
+	}()
+
+	// NOTE golang's sftp is too slow
+	stdinw, err := session.StdinPipe()
+	if err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	errch := make(chan error, 2)
+	go func() {
+		_, err := io.Copy(stdinw, s)
+		_ = stdinw.Close()
+
+		if errors.Is(err, io.EOF) {
+			err = nil
+		}
+
+		errch <- err
+	}()
+
+	if err := session.Run(fmt.Sprintf(`cat > '%s'`, dest)); err != nil {
+		var ssherr *ssh.ExitMissingError
+
+		if !errors.As(err, &ssherr) {
+			return errors.Wrap(err, "")
+		}
+	}
+
+	return <-errch
 }
 
 func (h *RemoteHost) CollectResult(outputfile string) error {
@@ -239,6 +304,10 @@ func (h *RemoteHost) sshClient() (*ssh.Client, error) {
 		return h.savedsshclient, nil
 	}
 
+	return h.newSSHClient()
+}
+
+func (h *RemoteHost) newSSHClient() (*ssh.Client, error) {
 	e := util.StringErrorFunc("failed to create ssh client")
 
 	sock, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
@@ -258,14 +327,22 @@ func (h *RemoteHost) sshClient() (*ssh.Client, error) {
 			ssh.PublicKeys(signers...),
 		},
 		HostKeyCallback: func(string, net.Addr, ssh.PublicKey) error { return nil },
+		Timeout:         0,
 	}
 
-	conn, err := ssh.Dial("tcp", h.Hostname()+":22", config)
+	addr := h.Hostname() + ":22"
+	netconn, err := net.DialTimeout("tcp", addr, time.Second*10)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, err
 	}
 
-	h.savedsshclient = conn
+	conn, chans, reqs, err := ssh.NewClientConn(netconn, addr, config)
+	if err != nil {
+		return nil, err
+	}
+
+	h.savedsshclient = ssh.NewClient(conn, chans, reqs)
+	h.savedsshconn = conn
 
 	return h.savedsshclient, nil
 }
@@ -278,8 +355,32 @@ func (h *RemoteHost) sshSession() (*ssh.Session, error) {
 		return nil, e(err, "")
 	}
 
-	session, err := client.NewSession()
-	if err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+
+	var session *ssh.Session
+	if err := util.Retry(ctx, func() (_ bool, err error) {
+		session, err = client.NewSession()
+
+		var ssherr *net.OpError
+		switch {
+		case err == nil:
+			return false, nil
+		case errors.As(err, &ssherr):
+			client, err = func() (*ssh.Client, error) {
+				h.Lock()
+				defer h.Unlock()
+
+				_ = h.savedsshconn.Close()
+
+				return h.newSSHClient()
+			}()
+
+			return true, err
+		default:
+			return true, err
+		}
+	}, -1, time.Millisecond*600); err != nil {
 		return nil, e(err, "")
 	}
 

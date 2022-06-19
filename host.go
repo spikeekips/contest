@@ -46,7 +46,7 @@ type Host interface {
 	Mkdir(string, os.FileMode) error
 	Upload(_ io.Reader, name, dest string, _ os.FileMode) error
 	CollectResult(outputfile string) error
-	ExistsContainer(_ context.Context, containerName string) (string, bool, error)
+	ExistsContainer(_ context.Context, containerName string) (string, string, bool, error)
 	CreateContainer(
 		_ context.Context,
 		_ *container.Config,
