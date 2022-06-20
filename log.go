@@ -77,6 +77,8 @@ func (w *WatchLogs) start(ctx context.Context, savelogch chan LogEntry) error {
 		return errors.Wrap(err, "")
 	}
 
+	w.Log().Debug().Stringer("query", queries[0]).Msg("querying")
+
 end:
 	for {
 		select {
@@ -95,8 +97,12 @@ end:
 				if err != nil {
 					return errors.Wrap(err, "")
 				}
+
+				w.Log().Debug().Stringer("query", queries[0]).Msg("querying")
 			default:
 				queries = left
+
+				w.Log().Debug().Stringer("query", queries[0]).Msg("querying")
 			}
 		}
 	}
@@ -119,7 +125,7 @@ func (w *WatchLogs) newactive() (newactive ExpectScenario, queires []ConditionQu
 		return active, nil, errors.Wrap(err, "")
 	}
 
-	log.Debug().
+	w.Log().Debug().
 		Interface("expect", active).
 		Func(func(e *zerolog.Event) {
 			s := make([]fmt.Stringer, len(queries))
@@ -234,8 +240,6 @@ func (w *WatchLogs) evaluate(
 
 	l := w.Log().With().Stringer("query", query).Logger()
 
-	l.Debug().Msg("querying")
-
 	if len(queries) > 0 {
 		left = queries[1:]
 	}
@@ -252,11 +256,24 @@ func (w *WatchLogs) evaluate(
 		l.Trace().Interface("out", r).Msg("matched")
 	}
 
+	for i := range current.Registers {
+		register := current.Registers[i]
+
+		l := w.Log().With().Interface("register", register).Logger()
+
+		if err := w.register(r, register); err != nil {
+			l.Error().Err(err).Msg("failed to register")
+
+			return left, ok, errors.Wrap(err, "")
+		}
+
+		l.Debug().Msg("registered")
+	}
+
 	for i := range current.Actions {
 		action := current.Actions[i]
 
-		l := w.Log().With().Stringer("logid", util.UUID()).Logger()
-		l.Debug().Interface("action", action).Msg("trying to run action")
+		l := w.Log().With().Interface("action", action).Logger()
 
 		if err := w.actionFunc(ctx, action); err != nil {
 			l.Error().Err(err).Msg("failed to run action")
@@ -265,21 +282,6 @@ func (w *WatchLogs) evaluate(
 		}
 
 		l.Debug().Msg("action done")
-	}
-
-	for i := range current.Registers {
-		register := current.Registers[i]
-
-		l := w.Log().With().Stringer("registerid", util.UUID()).Logger()
-		l.Debug().Interface("register", register).Msg("trying to register")
-
-		if err := w.register(r, register); err != nil {
-			l.Error().Err(err).Msg("failed to register")
-
-			return left, ok, errors.Wrap(err, "")
-		}
-
-		l.Debug().Msg("register done")
 	}
 
 	return left, true, nil
@@ -361,5 +363,5 @@ func (c HostCommandConditionQuery) Find(ctx context.Context) (interface{}, bool,
 		return nil, false, nil
 	}
 
-	return out, ok, nil
+	return strings.TrimRight(out, "\n"), ok, nil
 }

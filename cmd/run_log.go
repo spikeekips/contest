@@ -71,23 +71,31 @@ func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) erro
 	}()
 
 	savetail := func(t *tail.Tail, stderr bool) {
-		for l := range t.Lines {
-			if ctx.Err() != nil {
-				break
-			}
-
-			if l.Err != nil {
-				cmd.logch <- contest.NewInternalLogEntry("tail error", l.Err)
-			}
-
-			if len(l.Text) > 0 {
-				if e := log.Trace(); e.Enabled() {
-					e.Str("node", alias).Str("text", l.Text).Msg("new log text")
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case l := <-t.Lines:
+				if ctx.Err() != nil {
+					break
 				}
 
-				switch entry, err := contest.NewNodeLogEntry(alias, stderr, []byte(l.Text)); {
+				if l.Err != nil {
+					cmd.logch <- contest.NewInternalLogEntry("tail error", l.Err)
+				}
+
+				if len(l.Text) < 0 {
+					continue
+				}
+
+				text := l.Text
+				if e := log.Trace(); e.Enabled() {
+					e.Str("node", alias).Str("text", text).Bool("stderr", stderr).Msg("new log text")
+				}
+
+				switch entry, err := contest.NewNodeLogEntry(alias, stderr, []byte(text)); {
 				case err != nil:
-					log.Error().Err(err).Str("node", alias).Str("text", l.Text).Msg("wrong node log")
+					log.Error().Err(err).Str("node", alias).Str("text", text).Msg("wrong node log")
 				default:
 					cmd.logch <- entry
 				}

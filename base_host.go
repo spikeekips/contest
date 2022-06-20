@@ -230,7 +230,7 @@ func (h *baseHost) createContainer(
 
 func (h *baseHost) StartContainer(
 	ctx context.Context,
-	config *container.Config,
+	config *container.Config, // FIXME remove
 	hostConfig *container.HostConfig,
 	networkingConfig *network.NetworkingConfig,
 	name string,
@@ -298,13 +298,7 @@ func (h *baseHost) RemoveContainer(ctx context.Context, name string, options doc
 			return util.ErrNotFound.Errorf("container not found")
 		}
 
-		cid := i.(string)
-
-		if err := h.StopContainer(ctx, name, nil); err != nil {
-			return err
-		}
-
-		if err := h.client.ContainerRemove(ctx, cid, options); err != nil {
+		if err := h.client.ContainerRemove(ctx, i.(string), options); err != nil {
 			return err
 		}
 

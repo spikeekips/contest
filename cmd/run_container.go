@@ -10,31 +10,11 @@ import (
 	dockerMount "github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	contest "github.com/spikeekips/contest2"
 	"github.com/spikeekips/mitum/util"
 	"go.mongodb.org/mongo-driver/bson"
 )
-
-func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction) error {
-	switch action.Type {
-	case "run-nodes":
-		if err := cmd.rangeNodes(ctx, action, cmd.runNode); err != nil {
-			return errors.Wrap(err, "failed to run node")
-		}
-	case "stop-nodes":
-		if err := cmd.rangeNodes(ctx, action, func(ctx context.Context, alias string, _ []string) error {
-			_ = cmd.stopNodes(ctx, alias, nil)
-
-			// NOTE ignore error
-
-			return nil
-		}); err != nil {
-			return errors.Wrap(err, "failed to stop node")
-		}
-	}
-
-	return nil
-}
 
 func (cmd *runCommand) startRedisContainer(
 	ctx context.Context,
@@ -84,15 +64,36 @@ func (cmd *runCommand) startRedisContainer(
 	return nil
 }
 
-func (cmd *runCommand) runNode(ctx context.Context, alias string, args []string) error {
+func (cmd *runCommand) runNode(ctx context.Context, host contest.Host, alias string, args []string) error {
 	e := util.StringErrorFunc("failed to run node")
 
-	name := containerName(alias)
+	var foundloglevel, foundlogformat, foundlogout bool
+	for i := range args {
+		switch {
+		case args[i] == "--log.level":
+			foundloglevel = true
+		case args[i] == "--log.format":
+			foundlogformat = true
+		case args[i] == "--log.out":
+			foundlogout = true
+		}
 
-	host := cmd.hosts.HostByContainer(name)
-	if host == nil {
-		return e(nil, "host not found")
+		if foundloglevel && foundlogformat && foundlogout {
+			break
+		}
 	}
+
+	if !foundloglevel {
+		args = append(args, "--log.level", "debug")
+	}
+	if !foundlogformat {
+		args = append(args, "--log.format", "json")
+	}
+	if !foundlogout {
+		args = append(args, "--log.out", "stdout")
+	}
+
+	name := containerName(alias)
 
 	if err := host.RemoveContainer(ctx, name, dockerTypes.ContainerRemoveOptions{
 		RemoveVolumes: true,
@@ -106,14 +107,11 @@ func (cmd *runCommand) runNode(ctx context.Context, alias string, args []string)
 	config, hostconfig := cmd.nodeContainerConfigs(alias, host)
 	config.Cmd = args
 
-	switch _, _, found, err := host.ExistsContainer(ctx, name); {
-	case err != nil:
+	if err := host.CreateContainer(ctx, config, hostconfig, nil, name); err != nil {
 		return e(err, "")
-	case !found:
-		if err := host.CreateContainer(ctx, config, hostconfig, nil, name); err != nil {
-			return e(err, "")
-		}
 	}
+
+	lctx, logcancel := context.WithCancel(ctx)
 
 	if err := host.StartContainer(
 		ctx,
@@ -122,12 +120,44 @@ func (cmd *runCommand) runNode(ctx context.Context, alias string, args []string)
 		nil,
 		name,
 		func(body container.ContainerWaitOKBody, err error) {
+			logcancel()
+
 			l := log.With().Stringer("logid", util.UUID()).Logger()
 
-			l.Err(err).Interface("body", body).
-				Str("alias", alias).
-				Str("container", name).
-				Msg("container stopped")
+			func() *zerolog.Event {
+				e := l.Debug()
+
+				if err != nil && !errors.Is(err, context.Canceled) {
+					e = l.Error().Err(err)
+				}
+
+				return e.Interface("body", body).
+					Str("alias", alias).
+					Str("container", name).
+					Bool("ignore", cmd.design.IgnoreWhenAbnormalContainerExit)
+			}().Msg("container stopped")
+
+			if !errors.Is(err, context.Canceled) && !cmd.design.IgnoreWhenAbnormalContainerExit {
+				var exiterr error
+
+				switch {
+				case err != nil:
+					exiterr = err
+				case body.StatusCode != 0:
+					var errmsg string
+					if body.Error != nil {
+						errmsg = body.Error.Message + "; "
+					}
+
+					exiterr = errors.Errorf("%sexit=%d", errmsg, body.StatusCode)
+				}
+
+				if exiterr != nil {
+					cmd.exitch <- exiterr
+
+					return
+				}
+			}
 
 			if err != nil {
 				entry, err := contest.NewNodeLogEntryWithInterface(alias, true, bson.M{
@@ -168,7 +198,7 @@ func (cmd *runCommand) runNode(ctx context.Context, alias string, args []string)
 		return e(err, "")
 	}
 
-	if err := cmd.saveContainerLogs(ctx, alias); err != nil {
+	if err := cmd.saveContainerLogs(lctx, alias); err != nil {
 		return e(err, "")
 	}
 
@@ -242,7 +272,7 @@ func (cmd *runCommand) nodeContainerConfigs(alias string, host contest.Host) (
 func (cmd *runCommand) rangeNodes(
 	ctx context.Context,
 	action contest.ScenarioAction,
-	f func(context.Context, string, []string) error,
+	f func(context.Context, contest.Host, string, []string) error,
 ) error {
 	rv := action.RangeValues()
 	if len(rv) < 1 {
@@ -271,7 +301,7 @@ func (cmd *runCommand) rangeNodes(
 			return errors.Wrap(err, alias)
 		}
 
-		if err := f(ctx, alias, args); err != nil {
+		if err := f(ctx, host, alias, args); err != nil {
 			return errors.Wrap(err, alias)
 		}
 	}

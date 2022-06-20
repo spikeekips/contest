@@ -188,22 +188,6 @@ func (h *LocalHost) RunCommand(cmd string) (string, bool, error) {
 	}
 }
 
-func (h *LocalHost) runCommand(s string) (string, error) {
-	var b bytes.Buffer
-
-	cmd := exec.Command("bash", "-c", s)
-	cmd.Stdout = &b
-
-	e := util.StringErrorFunc("failed to run command")
-
-	err := cmd.Run()
-	if err != nil {
-		return "", e(err, "")
-	}
-
-	return b.String(), nil
-}
-
 func (h *LocalHost) checkArch() error {
 	out, err := h.runCommand("uname -sm")
 	if err != nil {
@@ -220,4 +204,20 @@ func (h *LocalHost) checkArch() error {
 	h.arch = arch
 
 	return nil
+}
+
+func (h *LocalHost) runCommand(s string) (string, error) {
+	var b bytes.Buffer
+
+	cmd := exec.Command("bash", "-c", s)
+	cmd.Stdout = &b
+
+	e := util.StringErrorFunc("failed to run command")
+
+	err := cmd.Run()
+	if err != nil {
+		return "", e(err, "")
+	}
+
+	return b.String(), nil
 }
