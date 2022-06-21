@@ -1,0 +1,79 @@
+# for init node with genesis operations
+# - 4 nodes will do init
+
+---
+#ignore_abnormal_container_exit: true
+vars:
+  .network_id: mitum contest; Sat 26 Dec 2020 05:29:13 AM KST
+
+designs:
+  common: |
+    {{ setVar ".self.privatekey" newKey }}
+    {{ setVar ".self.publickey" .self.privatekey.Publickey }}
+
+    address: {{ setgetVar ".self.address" ( printf "%ssas" .self.alias ) }}
+    privatekey: {{ .self.privatekey }}
+    network_id: {{ .network_id }}
+    network:
+      bind: 0.0.0.0:{{ freePort .self.host (print "node-" .self.alias) "udp" }}
+      publish: {{ setgetVar ".self.network.publish" ( print .self.host.PublishHost ":" ( freePort .self.host (print "node-" .self.alias) "udp" ) ) }}
+      tls_insecure: true
+    storage:
+      base: /data
+      database: redis://{{ setgetVar ".self.storage.database" ( print "localhost:" ( freePort .self.host "database-redis" "tcp" ) ) }}
+
+  genesis: |
+      facts:
+        - _hint: suffrage-genesis-join-permission-fact-v0.0.1
+          nodes:
+            - _hint: node-v0.0.1
+              address: {{ .nodes.no0.address }}
+              publickey: {{ .nodes.no0.publickey }}
+     
+            - _hint: node-v0.0.1
+              address: {{ .nodes.no1.address }}
+              publickey: {{ .nodes.no1.publickey }}
+     
+        - _hint: genesis-network-policy-fact-v0.0.1
+          policy:
+            _hint: network-policy-v0.0.1
+            max_operations_in_proposal: 99
+  
+  number-nodes: 4
+
+expects:
+  - condition: |
+      {"msg": "contest ready"}
+    actions:
+      - type: "run-nodes"
+        args:
+          - /cmd
+          - init
+          - config.yml
+          - genesis.yml
+        range:
+          - node: [no0, no1, no2, no3]
+
+  - condition: |
+      {
+        "x.message": "new block saved",
+        "x.blockmap.manifest.height": 0,
+        "x.blockmap.node": "{{ with ( index .nodes .self.range.node ) }}{{ .address }}{{ end }}",
+        "x.blockmap.signer": "{{ with ( index .nodes .self.range.node ) }}{{ .publickey }}{{ end }}"
+      }
+    range:
+      - node: [no0, no1, no2, no3]
+  
+  - condition: |
+      {"x.message": "genesis block generated"}
+    range:
+      - node: [no0, no1, no2, no3]
+  
+  - condition: |
+      {"x.exit_code": 0, "stderr": true}
+    range:
+      - node: [no0, no1, no2, no3]
+    actions:
+      - type: "stop-nodes"
+        range:
+          - node: [no0, no1, no2, no3]
