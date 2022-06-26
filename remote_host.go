@@ -48,7 +48,7 @@ func NewRemoteHost(base string, dockerhost *url.URL) (*RemoteHost, error) {
 		dockerClient.WithHost(dockerhost.String()),
 	)
 	if err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, errors.WithStack(err)
 	}
 
 	bh, err := newBaseHost(base, dockerhost, client)
@@ -139,7 +139,7 @@ func (h *RemoteHost) upload(s io.Reader, name, dest string) error {
 	// NOTE golang's sftp is too slow
 	stdinw, err := session.StdinPipe()
 	if err != nil {
-		return errors.Wrap(err, "")
+		return errors.WithStack(err)
 	}
 
 	errch := make(chan error, 2)
@@ -158,7 +158,7 @@ func (h *RemoteHost) upload(s io.Reader, name, dest string) error {
 		var ssherr *ssh.ExitMissingError
 
 		if !errors.As(err, &ssherr) {
-			return errors.Wrap(err, "")
+			return errors.WithStack(err)
 		}
 	}
 
@@ -437,7 +437,7 @@ func (h *RemoteHost) RunCommand(cmd string) (string, bool, error) {
 	case errors.As(err, &e):
 		return "", false, nil
 	default:
-		return "", false, errors.Wrap(err, "")
+		return "", false, errors.WithStack(err)
 	}
 }
 

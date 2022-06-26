@@ -44,7 +44,7 @@ func main() {
 	if err := func() error {
 		defer log.Info().Msg("stopped")
 
-		return errors.Wrap(kctx.Run(), "")
+		return errors.WithStack(kctx.Run())
 	}(); err != nil {
 		log.Error().Err(err).Msg("stopped by error")
 

@@ -59,7 +59,7 @@ func NewNodeLogEntryWithInterface(node string, stderr bool, i interface{}) (entr
 		default:
 			b, err := bson.Marshal(t)
 			if err != nil {
-				return entry, errors.Wrap(err, "")
+				return entry, errors.WithStack(err)
 			}
 
 			x = b
@@ -88,7 +88,7 @@ func NewNodeLogEntry(node string, stderr bool, b []byte) (entry NodeLogEntry, _ 
 
 		i, err := bson.Marshal(u)
 		if err != nil {
-			return entry, errors.Wrap(err, "")
+			return entry, errors.WithStack(err)
 		}
 
 		x = i

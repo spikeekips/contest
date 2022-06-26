@@ -164,7 +164,7 @@ func (h *baseHost) ExistsContainer(ctx context.Context, name string) (cid, info 
 
 	l, err := h.client.ContainerList(ctx, dockerTypes.ContainerListOptions{All: true})
 	if err != nil {
-		return cid, info, false, errors.Wrap(err, "")
+		return cid, info, false, errors.WithStack(err)
 	}
 
 end:
@@ -299,7 +299,7 @@ func (h *baseHost) RemoveContainer(ctx context.Context, name string, options doc
 		}
 
 		if err := h.client.ContainerRemove(ctx, i.(string), options); err != nil { //nolint:forcetypeassert //...
-			return errors.Wrap(err, "")
+			return errors.WithStack(err)
 		}
 
 		return nil

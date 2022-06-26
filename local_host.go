@@ -30,14 +30,14 @@ func NewLocalHost(base string, dockerhost *url.URL) (*LocalHost, error) {
 	case dockerhost != nil:
 		i, err := dockerClient.NewClientWithOpts(dockerClient.WithHost(dockerhost.String()))
 		if err != nil {
-			return nil, errors.Wrap(err, "")
+			return nil, errors.WithStack(err)
 		}
 
 		client = i
 	default:
 		i, err := dockerClient.NewClientWithOpts(dockerClient.FromEnv)
 		if err != nil {
-			return nil, errors.Wrap(err, "")
+			return nil, errors.WithStack(err)
 		}
 
 		client = i
@@ -169,7 +169,7 @@ func (h *LocalHost) Mkdir(dest string, mode os.FileMode) error {
 	newdest := filepath.Join(h.base, dest)
 
 	if err := os.MkdirAll(filepath.Clean(newdest), mode); err != nil {
-		return errors.Wrap(err, "")
+		return errors.WithStack(err)
 	}
 
 	return nil

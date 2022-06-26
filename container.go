@@ -38,7 +38,7 @@ func PullImage(client *dockerClient.Client, image string) error {
 		types.ImagePullOptions{},
 	)
 	if err != nil {
-		return errors.Wrap(err, "")
+		return errors.WithStack(err)
 	}
 
 	defer func() {
@@ -46,7 +46,7 @@ func PullImage(client *dockerClient.Client, image string) error {
 	}()
 
 	if _, err = io.ReadAll(r); err != nil {
-		return errors.Wrap(err, "")
+		return errors.WithStack(err)
 	}
 
 	return nil

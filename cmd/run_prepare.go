@@ -177,7 +177,7 @@ func (cmd *runCommand) prepareBinaries(host contest.Host) error {
 
 	f, err := os.Open(i)
 	if err != nil {
-		return errors.Wrap(err, "")
+		return errors.WithStack(err)
 	}
 
 	defer func() {
@@ -445,7 +445,7 @@ func (cmd *runCommand) checkLocalPublishHost() error {
 
 		addr, err := host.(*contest.RemoteHost).LocalAddr()
 		if err != nil {
-			return false, errors.Wrap(err, "")
+			return false, errors.WithStack(err)
 		}
 
 		switch {
