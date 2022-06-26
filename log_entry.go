@@ -16,8 +16,8 @@ type LogEntry interface {
 
 type InternalLogEntry struct {
 	t   time.Time
-	msg string `bson:"msg"`
 	err error  `bson:"error"`
+	msg string `bson:"msg"`
 }
 
 func NewInternalLogEntry(msg string, err error) InternalLogEntry {
@@ -27,10 +27,10 @@ func NewInternalLogEntry(msg string, err error) InternalLogEntry {
 func (e InternalLogEntry) X() {}
 
 type InternalLogEntryBSONMarshaler struct {
-	ID  string    `bson:"_id"`
 	T   time.Time `bson:"t"`
-	Msg string    `bson:"msg"`
 	Err error     `bson:"error"`
+	ID  string    `bson:"_id"`
+	Msg string    `bson:"msg"`
 }
 
 func (e InternalLogEntry) MarshalBSON() ([]byte, error) {

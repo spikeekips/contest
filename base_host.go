@@ -21,15 +21,15 @@ import (
 var defaultContainerStopTimeout = time.Second
 
 type baseHost struct {
-	base        string
+	containers  *util.LockedMap
 	addr        *url.URL
-	publishhost string
+	files       map[string]string
 	client      *dockerClient.Client
-	arch        elf.Machine
+	ports       *util.LockedMap
 	user        string
-	containers  *util.LockedMap               // map[name]cid
-	ports       *util.LockedMap               // map[id] port
-	files       map[string] /* name */ string /* path */
+	base        string
+	publishhost string
+	arch        elf.Machine
 }
 
 func newBaseHost(base string, addr *url.URL, client *dockerClient.Client) (*baseHost, error) {
@@ -43,7 +43,7 @@ func newBaseHost(base string, addr *url.URL, client *dockerClient.Client) (*base
 	}
 
 	if err := h.cleanContainers(true); err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	return h, nil
@@ -73,7 +73,7 @@ func (h *baseHost) Close() error {
 	return nil
 }
 
-func (h *baseHost) cleanContainers(remove bool) error {
+func (h *baseHost) cleanContainers(remove bool) error { //revive:disable-line:flag-parameter
 	e := util.StringErrorFunc("failed to clean containers")
 
 	l, err := h.client.ContainerList(context.Background(), dockerTypes.ContainerListOptions{All: true})
@@ -160,7 +160,7 @@ func (h *baseHost) ExistsContainer(ctx context.Context, name string) (cid, info 
 		return cid, info, false, nil
 	}
 
-	cid = i.(string)
+	cid = i.(string) //nolint:forcetypeassert //...
 
 	l, err := h.client.ContainerList(ctx, dockerTypes.ContainerListOptions{All: true})
 	if err != nil {
@@ -298,8 +298,8 @@ func (h *baseHost) RemoveContainer(ctx context.Context, name string, options doc
 			return util.ErrNotFound.Errorf("container not found")
 		}
 
-		if err := h.client.ContainerRemove(ctx, i.(string), options); err != nil {
-			return err
+		if err := h.client.ContainerRemove(ctx, i.(string), options); err != nil { //nolint:forcetypeassert //...
+			return errors.Wrap(err, "")
 		}
 
 		return nil
@@ -322,7 +322,12 @@ func (h *baseHost) ContainerLogs(
 		return nil, e(err, "")
 	}
 
-	return h.client.ContainerLogs(ctx, cid, options)
+	r, err := h.client.ContainerLogs(ctx, cid, options)
+	if err != nil {
+		return nil, e(err, "")
+	}
+
+	return r, nil
 }
 
 func (h *baseHost) findContainer(ctx context.Context, name string) (string, error) {
@@ -330,7 +335,7 @@ func (h *baseHost) findContainer(ctx context.Context, name string) (string, erro
 	case !found:
 		return "", util.ErrNotFound.Errorf("container not found")
 	default:
-		return i.(string), nil
+		return i.(string), nil //nolint:forcetypeassert //...
 	}
 }
 
@@ -342,10 +347,10 @@ func (h *baseHost) freePort(
 		return f(network)
 	})
 	if err != nil {
-		return "", errors.Wrap(err, "")
+		return "", err
 	}
 
-	return i.(string), nil
+	return i.(string), nil //nolint:forcetypeassert //...
 }
 
 func (h *baseHost) addFile(name string, path string) {

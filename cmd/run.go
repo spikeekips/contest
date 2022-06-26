@@ -43,7 +43,7 @@ func (cmd *runCommand) Run() error {
 	defer cancel()
 
 	if err := cmd.prepare(); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	cmd.exitch = make(chan error)
@@ -65,7 +65,7 @@ func (cmd *runCommand) Run() error {
 
 		return true, nil
 	}); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	defer func() {
@@ -144,7 +144,7 @@ func (cmd *runCommand) closeHosts() error {
 		return nil
 	case cmd.hosts.Len() == 1:
 		if err := cmd.hosts.Close(); err != nil {
-			return errors.Wrap(err, "")
+			return err
 		}
 	}
 
@@ -165,7 +165,7 @@ func (cmd *runCommand) closeHosts() error {
 	}()
 
 	if err := util.RunErrgroupWorkerByChan(context.Background(), int64(cmd.hosts.Len()), jobch); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	return nil

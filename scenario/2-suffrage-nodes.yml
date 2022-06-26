@@ -1,19 +1,16 @@
 # for init node with genesis operations
 # - 2 nodes: no0, no1
-# - no0 does init and run
-# - no0 stores blocks at leas1t 9
-# - no1 will import
+# - no0 and no1 are in suffrage from genesis
+# - no0 does init
+# - no1 does import from no0
+# - no0 and no1 start
+# - no0 and no1 will be in consensus
 
 ---
 ignore_abnormal_container_exit: true
 
 vars:
   .network_id: mitum contest; Sat 26 Dec 2020 05:29:13 AM KST
-
-nodes:
-  same_host:
-    - no0
-    - no1
 
 designs:
   common: |
@@ -38,13 +35,16 @@ designs:
             - _hint: node-v0.0.1
               address: {{ .nodes.no0.address }}
               publickey: {{ .nodes.no0.publickey }}
+            - _hint: node-v0.0.1
+              address: {{ .nodes.no1.address }}
+              publickey: {{ .nodes.no1.publickey }}
      
         - _hint: genesis-network-policy-fact-v0.0.1
           policy:
             _hint: network-policy-v0.0.1
             max_operations_in_proposal: 99
   
-  number-nodes: 4
+  number-nodes: 2
 
 expects:
   - condition: |
@@ -69,49 +69,60 @@ expects:
   
   - condition: |
       {"node": "no0", "x.message": "genesis block generated"}
+    registers:
+      - assign: .matched.no0.genesis
 
   - condition: |
-      {"node": "no0", "x.exit_code": 0, "stderr": true}
+      {"_id": {"$gt": "{{ .matched.no0.genesis._id }}" }, "node": "no0", "x.exit_code": 0, "stderr": true}
     actions:
       - type: "run-nodes"
         args:
           - /cmd
           - run
           - config.yml
+          - --sync-node
+          - "{{ .nodes.no1.network.publish }}#tls_insecure"
         range:
           - node: [no0]
 
-  - condition: |
-      {"node": "no0", "x.message": "new block saved", "x.blockmap.manifest.height": {"$gt": 5}}
-    actions:
-      - type: "stop-nodes"
-        range:
-          - node: [no0]
-
-  - condition: |
-      {"node": "no0", "x.exit_code": 0, "stderr": true}
-
-  - condition: |
-      $ find {{ .self.host.Base }}/{{ .self.range.node }}/data | grep map.json | sort | tail -n 1 | awk -F'000/' '{print $NF}' | cut -d '/' -f 1 | sed -e 's/^0*//g'
-    range:
-      - node: [no0]
-    registers:
-      - assign: .matched.no0_lastblock
-    actions:
       - type: "run-nodes"
         args:
           - /cmd
-          - import
+          - run
           - config.yml
-          - /host/no0/data
+          - --sync-node
+          - "{{ .nodes.no0.network.publish }}#tls_insecure"
+          - --discovery
+          - "{{ .nodes.no0.network.publish }}#tls_insecure"
         range:
           - node: [no1]
 
   - condition: |
-      {"node": "no1", "x.message": "new block merged", "x.height": {{ .matched.no0_lastblock }}}
+      {"node": "no0", "x.module": "memberlist", "x.node.node": "no1sas", "x.message": "node joined"}
 
   - condition: |
-      {"node": "no1", "x.message": "imported BlockMaps validated"}
+      {"node": "no1", "x.module": "memberlist", "x.node.node": "no0sas", "x.message": "node joined"}
 
   - condition: |
-      {"node": "no1", "x.exit_code": 0, "stderr": true}
+      {"node": "no1", "x.message": "state switched", "x.current_state": "STOPPED", "x.next_state.next": "SYNCING"}
+    registers:
+      - assign: .matched.no1.stopped_to_syncing
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no1.stopped_to_syncing._id }}" }, "node": "no1", "x.message": "state switched", "x.current_state": "SYNCING", "x.next_state.next": "JOINING"}
+    registers:
+      - assign: .matched.no1.syncing_to_joining
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no1.syncing_to_joining._id }}" }, "node": "no1", "x.message": "state switched", "x.current_state": "JOINING", "x.next_state.next": "CONSENSUS"}
+    registers:
+      - assign: .matched.no1.joining_to_consensus
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no1.joining_to_consensus._id }}" }, "node": "no1", "x.message": "new block saved"}
+    actions:
+      - type: "stop-nodes"
+        range:
+          - node: [no0, no1]
+
+

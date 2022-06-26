@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -14,8 +13,8 @@ type Design struct {
 	Vars                            map[string]interface{} `yaml:"vars"`
 	NodeDesigns                     NodeDesigns            `yaml:"designs"`
 	Expects                         []ExpectScenario       `yaml:"expects"`
-	IgnoreWhenAbnormalContainerExit bool                   `yaml:"ignore_abnormal_container_exit"`
 	Nodes                           NodesDesign            `yaml:"nodes"`
+	IgnoreWhenAbnormalContainerExit bool                   `yaml:"ignore_abnormal_container_exit"`
 }
 
 func (s Design) IsValid(b []byte) error {
@@ -36,7 +35,7 @@ func (s Design) IsValid(b []byte) error {
 	}
 
 	if _, found := util.CheckSliceDuplicated(s.Nodes.SameHost, func(i interface{}) string {
-		return i.(string)
+		return i.(string) //nolint:forcetypeassert //...
 	}); found {
 		return e(nil, "duplicated nodes found")
 	}
@@ -191,7 +190,7 @@ func (s ExpectScenario) Compile(vars *Vars) (newexpect ExpectScenario, err error
 	for i := range s.Registers {
 		newexpect.Registers[i], err = s.Registers[i].Compile(vars)
 		if err != nil {
-			return newexpect, errors.Wrap(err, "")
+			return newexpect, err
 		}
 	}
 
@@ -208,7 +207,7 @@ func (s ExpectScenario) Compile(vars *Vars) (newexpect ExpectScenario, err error
 				for j := range r[k] {
 					c, err := CompileTemplate(r[k][j], vars, nil)
 					if err != nil {
-						return newexpect, errors.Wrap(err, "")
+						return newexpect, err
 					}
 
 					v[j] = c
@@ -281,7 +280,7 @@ func (s ScenarioAction) CompileArgs(vars *Vars) (args []string, err error) {
 	for i := range s.Args {
 		args[i], err = CompileTemplate(s.Args[i], vars, nil)
 		if err != nil {
-			return nil, errors.Wrap(err, "")
+			return nil, err
 		}
 	}
 
@@ -313,7 +312,7 @@ func (s ScenarioRegister) Compile(vars *Vars) (newregister ScenarioRegister, err
 
 	newregister.Assign, err = CompileTemplate(s.Assign, vars, nil)
 	if err != nil {
-		return newregister, errors.Wrap(err, "")
+		return newregister, err
 	}
 
 	return newregister, nil

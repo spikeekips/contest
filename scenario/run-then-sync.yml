@@ -119,10 +119,10 @@ expects:
           - node: [no1]
 
   - condition: |
-      {"node": "no1", "x.message": "state switched", "x.current_state": "STOPPED", "x.next_state.next": "SYNCING" }
+      {"node": "no1", "x.message": "state switched", "x.current_state": "STOPPED", "x.next_state.next": "SYNCING"}
 
   - condition: |
-      {"node": "no1", "x.message": "syncer finished", "x.height": { "$gte": {{ .matched.no0_lastblock }} } }
+      {"node": "no1", "x.message": "syncer finished", "x.height": { "$gte": {{ .matched.no0_lastblock }} }}
 
   - condition: |
        $ set -e; {{ hostFile .self.host "cmd" }}  network client '{"key":"suffrage","_hint":"state-header-v0.0.1"}' '{{ .nodes.no1.network.publish }}' | jq -e -c '(.v.value.nodes | length == 1) and (.v.value.nodes[0] | .address == "{{ .nodes.no0.address }}" and .publickey == "{{ .nodes.no0.publickey }}")'

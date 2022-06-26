@@ -11,24 +11,34 @@ import (
 func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction) error {
 	switch action.Type {
 	case "run-nodes":
-		if err := cmd.rangeNodes(ctx, action, func(ctx context.Context, host contest.Host, alias string, args []string) error {
-			log.Debug().Str("host", host.Address()).Str("alias", alias).Strs("args", args).Msg("run run-nodes")
+		if err := cmd.rangeNodes(ctx, action,
+			func(ctx context.Context, host contest.Host, alias string, args []string) error {
+				log.Debug().
+					Str("host", host.Address()).
+					Str("alias", alias).
+					Strs("args", args).
+					Msg("run run-nodes")
 
-			return cmd.runNode(ctx, host, alias, args)
-		}); err != nil {
-			return errors.Wrap(err, "failed to run node")
+				return cmd.runNode(ctx, host, alias, args)
+			}); err != nil {
+			return errors.WithMessage(err, "failed to run node")
 		}
 	case "stop-nodes":
-		if err := cmd.rangeNodes(ctx, action, func(ctx context.Context, host contest.Host, alias string, args []string) error {
-			log.Debug().Str("host", host.Address()).Str("alias", alias).Strs("args", args).Msg("run stop-nodes")
+		if err := cmd.rangeNodes(ctx, action,
+			func(ctx context.Context, host contest.Host, alias string, args []string) error {
+				log.Debug().
+					Str("host", host.Address()).
+					Str("alias", alias).
+					Strs("args", args).
+					Msg("run stop-nodes")
 
-			_ = cmd.stopNodes(ctx, alias, nil)
+				_ = cmd.stopNodes(ctx, alias, nil)
 
-			// NOTE ignore error
+				// NOTE ignore error
 
-			return nil
-		}); err != nil {
-			return errors.Wrap(err, "failed to stop node")
+				return nil
+			}); err != nil {
+			return errors.WithMessage(err, "failed to stop node")
 		}
 	case "host-command":
 		if err := cmd.rangeNodes(ctx, action,
@@ -48,7 +58,12 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 					}
 				}
 
-				log.Debug().Str("host", host.Address()).Str("alias", alias).Strs("args", args).Str("cmd", cmd).Msg("run host-command")
+				log.Debug().
+					Str("host", host.Address()).
+					Str("alias", alias).
+					Strs("args", args).
+					Str("cmd", cmd).
+					Msg("run host-command")
 
 				switch _, ok, err := host.RunCommand(cmd); {
 				case err != nil:
@@ -60,7 +75,7 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 				}
 			},
 		); err != nil {
-			return errors.Wrap(err, "failed to run host command")
+			return errors.WithMessage(err, "failed to run host command")
 		}
 	}
 

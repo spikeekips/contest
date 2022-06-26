@@ -43,7 +43,7 @@ func availableTCPPort() (string, error) {
 			_ = l.Close()
 		}()
 
-		return fmt.Sprintf("%d", l.Addr().(*net.TCPAddr).Port), nil
+		return fmt.Sprintf("%d", l.Addr().(*net.TCPAddr).Port), nil //nolint:forcetypeassert //...
 	}
 }
 

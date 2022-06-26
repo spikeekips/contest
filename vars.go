@@ -26,9 +26,9 @@ var TranslateWords = map[string]string{
 }
 
 type Vars struct {
-	sync.RWMutex
 	m       map[string]interface{}
 	funcMap template.FuncMap
+	sync.RWMutex
 }
 
 func NewVars(m map[string]interface{}) *Vars {
@@ -49,7 +49,8 @@ func (vs *Vars) Clone(m map[string]interface{}) *Vars {
 		vs.RLock()
 		defer vs.RUnlock()
 
-		nvars := NewVars(copyValue(reflect.ValueOf(vs.m)).Interface().(map[string]interface{}))
+		nvars := NewVars(copyValue(reflect.ValueOf(vs.m)). //nolint:forcetypeassert //...
+									Interface().(map[string]interface{}))
 		nvars.funcMap = vs.funcMap
 
 		return nvars
@@ -147,7 +148,7 @@ func SanitizeVarsMap(m interface{}) interface{} {
 		vr := v.MapRange()
 		for vr.Next() {
 			n.SetMapIndex(
-				reflect.ValueOf(NormalizeVarsKey(vr.Key().Interface().(string))),
+				reflect.ValueOf(NormalizeVarsKey(vr.Key().Interface().(string))), //nolint:forcetypeassert //...
 				reflect.ValueOf(SanitizeVarsMap(vr.Value().Interface())),
 			)
 		}
@@ -225,10 +226,10 @@ func setVar(m map[string]interface{}, keys string, v interface{}) error {
 	l := m
 	for _, k := range ks[:len(ks)-1] {
 		if j, found := l[k]; !found {
-			l[k] = map[string]interface{}{}
-			l = l[k].(map[string]interface{})
+			l[k] = map[string]interface{}{}   //nolint:forcetypeassert //...
+			l = l[k].(map[string]interface{}) //nolint:forcetypeassert //...
 		} else {
-			l = j.(map[string]interface{})
+			l = j.(map[string]interface{}) //nolint:forcetypeassert //...
 		}
 	}
 
@@ -254,8 +255,8 @@ func renameVar(m map[string]interface{}, keys, newkey string) error {
 
 	for _, k := range ks {
 		if j, found := l[k]; !found {
-			l[k] = map[string]interface{}{}
-			l = l[k].(map[string]interface{})
+			l[k] = map[string]interface{}{}   //nolint:forcetypeassert //...
+			l = l[k].(map[string]interface{}) //nolint:forcetypeassert //...
 		} else {
 			v = j
 			foundkey = true
@@ -340,7 +341,7 @@ func copyValue(v reflect.Value) reflect.Value {
 }
 
 func setMapIndexStringKey(m, k, v reflect.Value) {
-	key := k.Interface().(string)
+	key := k.Interface().(string) //nolint:forcetypeassert //...
 	m.SetMapIndex(reflect.ValueOf(key), v)
 }
 

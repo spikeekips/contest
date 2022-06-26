@@ -285,7 +285,7 @@ func (cmd *runCommand) rangeNodes(
 			return errors.Errorf("`node` not found in range; %q", rv[1])
 		}
 
-		alias := j.(string)
+		alias := j.(string) //nolint:forcetypeassert //...
 
 		host := cmd.hosts.HostByContainer(containerName(alias))
 		if host == nil {
@@ -298,11 +298,11 @@ func (cmd *runCommand) rangeNodes(
 
 		args, err := action.CompileArgs(vars)
 		if err != nil {
-			return errors.Wrap(err, alias)
+			return errors.WithMessage(err, alias)
 		}
 
 		if err := f(ctx, host, alias, args); err != nil {
-			return errors.Wrap(err, alias)
+			return errors.WithMessage(err, alias)
 		}
 	}
 

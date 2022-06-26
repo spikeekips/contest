@@ -8,13 +8,13 @@ import (
 )
 
 type Hosts struct {
-	sync.Mutex
-	samehost         []string
-	hostids          []string
 	hosts            map[string]Host
 	hostsbycontainer map[string]Host
 	containersbyhost map[string][]string
+	samehost         []string
+	hostids          []string
 	lastused         int
+	sync.Mutex
 }
 
 func NewHosts(samehost []string) *Hosts {

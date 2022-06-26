@@ -17,14 +17,14 @@ import (
 type WatchLogs struct {
 	*logging.Logging
 	*util.ContextDaemon
-	expects              []ExpectScenario
-	actives              []ExpectScenario
-	checkInterval        time.Duration
+	actionFunc           func(context.Context, ScenarioAction) error
+	insertLogEntriesFunc func(context.Context, []LogEntry) error
 	vars                 *Vars
 	getHostFunc          func(string) Host
 	findDBFunc           func(context.Context, bson.M) (interface{}, bool, error)
-	actionFunc           func(context.Context, ScenarioAction) error
-	insertLogEntriesFunc func(context.Context, []LogEntry) error
+	expects              []ExpectScenario
+	actives              []ExpectScenario
+	checkInterval        time.Duration
 }
 
 func NewWatchLogs(
@@ -37,7 +37,7 @@ func NewWatchLogs(
 	actionFunc func(context.Context, ScenarioAction) error,
 	insertLogEntriesFunc func(context.Context, []LogEntry) error,
 ) *WatchLogs {
-	ucheckInterval := time.Millisecond * 300
+	ucheckInterval := time.Millisecond * 300 //nolint:gomnd //...
 	if checkInterval != nil {
 		ucheckInterval = *checkInterval
 	}
@@ -74,7 +74,7 @@ func (w *WatchLogs) start(ctx context.Context, savelogch chan LogEntry) error {
 
 	active, queries, err := w.newactive()
 	if err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	w.Log().Debug().Stringer("query", queries[0]).Msg("querying")
@@ -87,7 +87,7 @@ end:
 		case <-ticker.C:
 			switch left, ok, err := w.evaluate(ctx, active, queries); {
 			case err != nil:
-				return errors.Wrap(err, "")
+				return err
 			case !ok:
 				continue end
 			case len(w.actives) < 1: // NOTE finished
@@ -95,7 +95,7 @@ end:
 			case len(left) < 1:
 				active, queries, err = w.newactive()
 				if err != nil {
-					return errors.Wrap(err, "")
+					return err
 				}
 
 				w.Log().Debug().Stringer("query", queries[0]).Msg("querying")
@@ -117,12 +117,12 @@ func (w *WatchLogs) newactive() (newactive ExpectScenario, queires []ConditionQu
 
 	active, err := selected.Compile(w.vars)
 	if err != nil {
-		return active, nil, errors.Wrap(err, "")
+		return active, nil, err
 	}
 
 	queries, err := w.compileConditionQueries(active)
 	if err != nil {
-		return active, nil, errors.Wrap(err, "")
+		return active, nil, err
 	}
 
 	w.Log().Debug().
@@ -147,7 +147,7 @@ func (w *WatchLogs) compileConditionQueries(expect ExpectScenario) (queries []Co
 	if len(expect.Range) < 1 {
 		query, err := w.compileConditionQuery(expect.Condition, w.vars)
 		if err != nil {
-			return nil, errors.Wrap(err, "")
+			return nil, err
 		}
 
 		return []ConditionQuery{query}, nil
@@ -162,7 +162,7 @@ func (w *WatchLogs) compileConditionQueries(expect ExpectScenario) (queries []Co
 
 		query, err := w.compileConditionQuery(expect.Condition, vars)
 		if err != nil {
-			return nil, errors.Wrap(err, "")
+			return nil, err
 		}
 
 		queries[i] = query
@@ -181,10 +181,10 @@ func (w *WatchLogs) compileConditionQuery(s string, vars *Vars) (ConditionQuery,
 	case !found:
 		rangevalue = map[string]interface{}{}
 	default:
-		rangevalue = i.(map[string]interface{})
+		rangevalue = i.(map[string]interface{}) //nolint:forcetypeassert //...
 
 		if j, found := rangevalue["node"]; found {
-			alias = j.(string)
+			alias = j.(string) //nolint:forcetypeassert //...
 		}
 	}
 
@@ -233,7 +233,7 @@ func (w *WatchLogs) evaluate(
 ) (left []ConditionQuery, ok bool, _ error) {
 	current, err := expect.Compile(w.vars)
 	if err != nil {
-		return left, false, errors.Wrap(err, "")
+		return left, false, err
 	}
 
 	query := queries[0]
@@ -247,7 +247,7 @@ func (w *WatchLogs) evaluate(
 	r, found, err := query.Find(ctx)
 	switch {
 	case err != nil:
-		return left, false, errors.Wrap(err, "")
+		return left, false, err
 	case !found:
 		return left, false, nil
 	default:
@@ -259,12 +259,12 @@ func (w *WatchLogs) evaluate(
 	for i := range current.Registers {
 		register := current.Registers[i]
 
-		l := w.Log().With().Interface("register", register).Logger()
+		l := w.Log().With().Interface("result", r).Interface("register", register).Logger()
 
 		if err := w.register(r, register); err != nil {
 			l.Error().Err(err).Msg("failed to register")
 
-			return left, ok, errors.Wrap(err, "")
+			return left, ok, err
 		}
 
 		l.Debug().Msg("registered")
@@ -278,7 +278,7 @@ func (w *WatchLogs) evaluate(
 		if err := w.actionFunc(ctx, action); err != nil {
 			l.Error().Err(err).Msg("failed to run action")
 
-			return left, ok, errors.Wrap(err, "")
+			return left, ok, err
 		}
 
 		l.Debug().Msg("action done")
@@ -349,8 +349,8 @@ func (c MongodbConditionQuery) Find(ctx context.Context) (interface{}, bool, err
 }
 
 type HostCommandConditionQuery struct {
-	cmd  string
 	host Host
+	cmd  string
 }
 
 func (c HostCommandConditionQuery) String() string {

@@ -45,20 +45,20 @@ func NewLocalHost(base string, dockerhost *url.URL) (*LocalHost, error) {
 
 	bh, err := newBaseHost(base, localHostURI, client)
 	if err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	h := &LocalHost{baseHost: bh}
 
 	switch u, err := user.Current(); {
 	case err != nil:
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	default:
 		h.user = u.Uid
 	}
 
 	if err := h.checkArch(); err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	if err := os.MkdirAll(h.base, 0o700); err != nil {
@@ -184,14 +184,14 @@ func (h *LocalHost) RunCommand(cmd string) (string, bool, error) {
 	case errors.As(err, &e):
 		return "", false, nil
 	default:
-		return "", false, errors.Wrap(err, "")
+		return "", false, err
 	}
 }
 
 func (h *LocalHost) checkArch() error {
 	out, err := h.runCommand("uname -sm")
 	if err != nil {
-		return errors.Wrap(err, "failed to check arch")
+		return errors.WithMessage(err, "failed to check arch")
 	}
 
 	uname := strings.TrimSuffix(out, "\n")

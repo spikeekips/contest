@@ -22,27 +22,27 @@ var DefaultHostBase = "/tmp/contest"
 
 func (cmd *runCommand) prepare() error {
 	if err := cmd.prepareFlags(); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	if err := cmd.prepareLogs(); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	if err := cmd.prepareBase(); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	if err := cmd.prepareDesign(); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	if err := cmd.prepareHosts(); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	if err := cmd.prepareScenario(); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	log.Debug().Interface("vars", cmd.vars.Map()).Msg("vars")
@@ -185,7 +185,7 @@ func (cmd *runCommand) prepareBinaries(host contest.Host) error {
 	}()
 
 	if err := host.Upload(f, "cmd", "cmd", 0o700); err != nil {
-		return errors.Wrap(err, "failed to upload node binary")
+		return errors.WithMessage(err, "failed to upload node binary")
 	}
 
 	return nil
@@ -207,7 +207,8 @@ func (cmd *runCommand) prepareBase() error {
 		}
 	}
 
-	suffix := fmt.Sprintf("%s-%s-%s", contestID, localtime.Now().Format("20060102T150405.999999999"), filepath.Base(cmd.Design))
+	suffix := fmt.Sprintf("%s-%s-%s", contestID,
+		localtime.Now().Format("20060102T150405.999999999"), filepath.Base(cmd.Design))
 
 	abs, err := filepath.Abs(cmd.BaseDir)
 	switch {
@@ -404,7 +405,12 @@ func (cmd *runCommand) prepareScenario() error {
 			return e(err, "")
 		}
 
-		if err := host.Upload(strings.NewReader(designs[alias]), "config.yml", filepath.Join(alias, "config.yml"), 0o600); err != nil {
+		if err := host.Upload(
+			strings.NewReader(designs[alias]),
+			"config.yml",
+			filepath.Join(alias, "config.yml"),
+			0o600,
+		); err != nil {
 			return e(err, "")
 		}
 
@@ -454,7 +460,7 @@ func (cmd *runCommand) checkLocalPublishHost() error {
 
 	if remoteside.IsValid() {
 		for i := range locals {
-			locals[i].(*contest.LocalHost).SetPublishHost(remoteside.String())
+			locals[i].(*contest.LocalHost).SetPublishHost(remoteside.String()) //nolint:forcetypeassert //...
 		}
 	}
 
@@ -467,10 +473,10 @@ func (cmd *runCommand) checkImages(client *dockerClient.Client, images ...string
 
 		switch found, err := contest.ExistsImage(client, image); {
 		case err != nil:
-			return errors.Wrapf(err, "failed to check image, %q", image)
+			return errors.WithMessagef(err, "failed to check image, %q", image)
 		case !found:
 			if err := contest.PullImage(client, image); err != nil {
-				return errors.Wrapf(err, "failed to pull image, %q", image)
+				return errors.WithMessagef(err, "failed to pull image, %q", image)
 			}
 		}
 	}

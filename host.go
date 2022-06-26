@@ -79,7 +79,7 @@ func MachineToString(m elf.Machine) string {
 }
 
 type Artifact struct {
-	Source   []byte
 	Target   string
+	Source   []byte
 	FileMode os.FileMode
 }

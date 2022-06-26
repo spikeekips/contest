@@ -37,10 +37,10 @@ var tcpFreeportCmdF = `read FROM TO < /proc/sys/net/ipv4/ip_local_port_range
 		shuf | head -n 1`
 
 type RemoteHost struct {
-	sync.Mutex
+	savedsshconn ssh.Conn
 	*baseHost
 	savedsshclient *ssh.Client
-	savedsshconn   ssh.Conn
+	sync.Mutex
 }
 
 func NewRemoteHost(base string, dockerhost *url.URL) (*RemoteHost, error) {
@@ -53,17 +53,17 @@ func NewRemoteHost(base string, dockerhost *url.URL) (*RemoteHost, error) {
 
 	bh, err := newBaseHost(base, dockerhost, client)
 	if err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	h := &RemoteHost{baseHost: bh}
 
 	if err := h.checkEnv(); err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	if err := h.checkBase(); err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	return h, nil
@@ -113,7 +113,7 @@ func (h *RemoteHost) Upload(s io.Reader, name, dest string, mode os.FileMode) er
 		}
 
 		return false, nil
-	}, 3, time.Second); err != nil {
+	}, 3, time.Second); err != nil { //nolint:gomnd //...
 		return e(err, "")
 	}
 
@@ -129,7 +129,7 @@ func (h *RemoteHost) Upload(s io.Reader, name, dest string, mode os.FileMode) er
 func (h *RemoteHost) upload(s io.Reader, name, dest string) error {
 	session, err := h.sshSession()
 	if err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	defer func() {
@@ -229,7 +229,7 @@ func (h *RemoteHost) LocalAddr() (addr netip.Addr, _ error) {
 	}
 
 	l := strings.SplitN(out, " ", 2)
-	if len(l) != 2 {
+	if len(l) != 2 { //nolint:gomnd //...
 		return addr, e(nil, "invalid output")
 	}
 
@@ -331,7 +331,7 @@ func (h *RemoteHost) newSSHClient() (*ssh.Client, error) {
 	}
 
 	addr := h.Hostname() + ":22"
-	netconn, err := net.DialTimeout("tcp", addr, time.Second*10)
+	netconn, err := net.DialTimeout("tcp", addr, time.Second*10) //nolint:gomnd //...
 	if err != nil {
 		return nil, err
 	}
@@ -355,7 +355,7 @@ func (h *RemoteHost) sshSession() (*ssh.Session, error) {
 		return nil, e(err, "")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3) //nolint:gomnd //...
 	defer cancel()
 
 	var session *ssh.Session
@@ -380,7 +380,7 @@ func (h *RemoteHost) sshSession() (*ssh.Session, error) {
 		default:
 			return true, err
 		}
-	}, -1, time.Millisecond*600); err != nil {
+	}, -1, time.Millisecond*600); err != nil { //nolint:gomnd //...
 		return nil, e(err, "")
 	}
 

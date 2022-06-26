@@ -135,7 +135,7 @@ func (db *Mongodb) createIndices(ctx context.Context, col string, models []mongo
 
 	var existings []string // nolint:prealloc
 	for _, r := range results {
-		name := r["name"].(string)
+		name := r["name"].(string) //nolint:forcetypeassert //...
 		if !strings.HasPrefix(name, prefix) {
 			continue
 		}
