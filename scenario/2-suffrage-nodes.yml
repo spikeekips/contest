@@ -80,8 +80,6 @@ expects:
           - /cmd
           - run
           - config.yml
-          - --sync-node
-          - "{{ .nodes.no1.network.publish }}#tls_insecure"
         range:
           - node: [no0]
 
@@ -90,8 +88,6 @@ expects:
           - /cmd
           - run
           - config.yml
-          - --sync-node
-          - "{{ .nodes.no0.network.publish }}#tls_insecure"
           - --discovery
           - "{{ .nodes.no0.network.publish }}#tls_insecure"
         range:
@@ -124,5 +120,3 @@ expects:
       - type: "stop-nodes"
         range:
           - node: [no0, no1]
-
-
