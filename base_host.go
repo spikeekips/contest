@@ -97,29 +97,24 @@ func (h *baseHost) cleanContainers(remove bool) error { //revive:disable-line:fl
 		return nil
 	}
 
-	jobch := make(chan util.ContextWorkerCallback)
-
-	go func() {
-		for i := range cids {
+	if err := util.RunErrgroupWorker(
+		context.Background(),
+		uint64(len(cids)),
+		func(ctx context.Context, i, _ uint64) error {
 			cid := cids[i]
-			jobch <- func(ctx context.Context, _ uint64) error {
-				_ = h.client.ContainerPause(context.Background(), cid)
-				_ = h.client.ContainerStop(context.Background(), cid, &defaultContainerStopTimeout)
 
-				if remove {
-					_ = h.client.ContainerRemove(context.Background(), cid, dockerTypes.ContainerRemoveOptions{
-						RemoveVolumes: true, Force: true,
-					})
-				}
+			_ = h.client.ContainerPause(context.Background(), cid)
+			_ = h.client.ContainerStop(context.Background(), cid, &defaultContainerStopTimeout)
 
-				return nil
+			if remove {
+				_ = h.client.ContainerRemove(context.Background(), cid, dockerTypes.ContainerRemoveOptions{
+					RemoveVolumes: true, Force: true,
+				})
 			}
-		}
 
-		close(jobch)
-	}()
-
-	if err := util.RunErrgroupWorkerByChan(context.Background(), int64(len(cids)), jobch); err != nil {
+			return nil
+		},
+	); err != nil {
 		return e(err, "")
 	}
 
@@ -230,7 +225,6 @@ func (h *baseHost) createContainer(
 
 func (h *baseHost) StartContainer(
 	ctx context.Context,
-	config *container.Config, // FIXME remove
 	hostConfig *container.HostConfig,
 	networkingConfig *network.NetworkingConfig,
 	name string,
@@ -340,11 +334,11 @@ func (h *baseHost) findContainer(ctx context.Context, name string) (string, erro
 }
 
 func (h *baseHost) freePort(
-	id, network string,
-	f func(network string) (port string, _ error),
+	id, n string,
+	f func(n string) (port string, _ error),
 ) (string, error) {
 	i, _, err := h.ports.Get(id, func() (interface{}, error) {
-		return f(network)
+		return f(n)
 	})
 	if err != nil {
 		return "", err

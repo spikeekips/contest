@@ -84,7 +84,7 @@ func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) erro
 					cmd.logch <- contest.NewInternalLogEntry("tail error", l.Err)
 				}
 
-				if len(l.Text) < 0 {
+				if len(l.Text) < 1 {
 					continue
 				}
 

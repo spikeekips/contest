@@ -5,7 +5,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/launch"
-	_ "github.com/spikeekips/mitum/launch"
 	mitumlogging "github.com/spikeekips/mitum/util/logging"
 )
 

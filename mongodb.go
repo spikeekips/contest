@@ -73,11 +73,7 @@ func (db *Mongodb) connect(ctx context.Context, cs connstring.ConnString) error 
 	db.client = client
 	db.db = client.Database(cs.Database)
 
-	if err := db.createIndices(ctx, mongodbColLogEntry, logEntryIndexModel, mongodbColLogEntry); err != nil {
-		return err
-	}
-
-	return nil
+	return db.createIndices(ctx, mongodbColLogEntry, logEntryIndexModel, mongodbColLogEntry)
 }
 
 func (db *Mongodb) Close(ctx context.Context) error {
@@ -133,7 +129,7 @@ func (db *Mongodb) createIndices(ctx context.Context, col string, models []mongo
 		return err
 	}
 
-	var existings []string // nolint:prealloc
+	var existings []string //nolint:prealloc
 	for _, r := range results {
 		name := r["name"].(string) //nolint:forcetypeassert //...
 		if !strings.HasPrefix(name, prefix) {

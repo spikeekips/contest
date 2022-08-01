@@ -30,11 +30,10 @@ designs:
       tls_insecure: true
     storage:
       base: /data
-      database: redis://{{ setgetVar ".self.storage.database" ( print "localhost:" ( freePort .self.host "database-redis" "tcp" ) ) }}
 
   genesis: |
       facts:
-        - _hint: suffrage-genesis-join-permission-fact-v0.0.1
+        - _hint: suffrage-genesis-join-fact-v0.0.1
           nodes:
             - _hint: node-v0.0.1
               address: {{ .nodes.no0.address }}
@@ -44,8 +43,20 @@ designs:
           policy:
             _hint: network-policy-v0.0.1
             max_operations_in_proposal: 99
+            suffrage_candidate_lifespan: 33
+            suffrage_candidate_limiter:
+              _hint: fixed-suffrage-candidate-limiter-rule-v0.0.1
+              limit: 1 
   
   number-nodes: 4
+  nodes:
+    no1: |
+      sync_sources:
+        - type: sync-source-node
+          address: {{ .nodes.no0.address }}
+          publickey: {{ .nodes.no0.publickey }}
+          publish: "{{ .nodes.no0.network.publish }}"
+          tls_insecure: true
 
 expects:
   - condition: |
@@ -62,15 +73,12 @@ expects:
 
   - condition: |
       {
-        "x.message": "new block saved",
+        "x.message": "genesis block generated",
         "x.blockmap.manifest.height": 0,
         "x.blockmap.node": "{{ .nodes.no0.address }}",
         "x.blockmap.signer": "{{ .nodes.no0.publickey }}"
       }
   
-  - condition: |
-      {"node": "no0", "x.message": "genesis block generated"}
-
   - condition: |
       {"node": "no0", "x.exit_code": 0, "stderr": true}
     actions:
@@ -83,7 +91,7 @@ expects:
           - node: [no0]
 
   - condition: |
-      {"node": "no0", "x.message": "new block saved", "x.blockmap.manifest.height": {"$gt": 5}}
+      {"node": "no0", "x.message": "new block saved", "x.height": {"$gt": 5}}
     actions:
       - type: "stop-nodes"
         range:
@@ -98,6 +106,7 @@ expects:
           - run
           - config.yml
           - --hold
+          - ""
         range:
           - node: [no0]
 
@@ -114,7 +123,7 @@ expects:
           - run
           - config.yml
           - --discovery
-          - "{{ .nodes.no0.network.publish }}"
+          - "{{ .nodes.no0.network.publish }}#tls_insecure"
         range:
           - node: [no1]
 

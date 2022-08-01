@@ -159,7 +159,7 @@ func (s ExpectScenario) RangeValues() []map[string]interface{} {
 			break
 		}
 
-		break
+		break //lint:ignore SA4004 //...
 	}
 
 	ms := make([]map[string]interface{}, l)
@@ -182,9 +182,8 @@ func (s ExpectScenario) RangeValues() []map[string]interface{} {
 func (s ExpectScenario) Compile(vars *Vars) (newexpect ExpectScenario, err error) {
 	newexpect.Condition = s.Condition
 	newexpect.Actions = make([]ScenarioAction, len(s.Actions))
-	for i := range s.Actions {
-		newexpect.Actions[i] = s.Actions[i]
-	}
+
+	copy(newexpect.Actions, s.Actions)
 
 	newexpect.Registers = make([]ScenarioRegister, len(s.Registers))
 	for i := range s.Registers {
@@ -254,7 +253,7 @@ func (s ScenarioAction) RangeValues() []map[string]interface{} {
 			break
 		}
 
-		break
+		break //lint:ignore SA4004 //...
 	}
 
 	ms := make([]map[string]interface{}, l)

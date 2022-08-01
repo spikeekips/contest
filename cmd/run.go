@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
 	"github.com/pkg/errors"
 	contest "github.com/spikeekips/contest2"
 	"github.com/spikeekips/mitum/util"
@@ -47,26 +46,6 @@ func (cmd *runCommand) Run() error {
 	}
 
 	cmd.exitch = make(chan error)
-
-	if err := cmd.hosts.TraverseByHost(func(h contest.Host, _ []string) (bool, error) {
-		if err := cmd.startRedisContainer(ctx, h, func(body container.ContainerWaitOKBody, err error) {
-			if err != nil {
-				cmd.exitch <- err
-
-				return
-			}
-
-			if body.Error != nil {
-				cmd.exitch <- errors.Errorf(body.Error.Message)
-			}
-		}); err != nil {
-			return false, err
-		}
-
-		return true, nil
-	}); err != nil {
-		return err
-	}
 
 	defer func() {
 		err := cmd.closeHosts()
@@ -148,25 +127,22 @@ func (cmd *runCommand) closeHosts() error {
 		}
 	}
 
-	jobch := make(chan util.ContextWorkerCallback)
+	worker := util.NewErrgroupWorker(context.Background(), int64(cmd.hosts.Len()))
+	defer worker.Close()
 
-	go func() {
-		_ = cmd.hosts.Traverse(func(host contest.Host) (bool, error) {
-			jobch <- func(context.Context, uint64) error {
-				_ = host.Close()
+	_ = cmd.hosts.Traverse(func(host contest.Host) (bool, error) {
+		if err := worker.NewJob(func(context.Context, uint64) error {
+			_ = host.Close()
 
-				return nil
-			}
+			return nil
+		}); err != nil {
+			return false, err
+		}
 
-			return true, nil
-		})
+		return true, nil
+	})
 
-		close(jobch)
-	}()
+	worker.Done()
 
-	if err := util.RunErrgroupWorkerByChan(context.Background(), int64(cmd.hosts.Len()), jobch); err != nil {
-		return err
-	}
-
-	return nil
+	return worker.Wait()
 }

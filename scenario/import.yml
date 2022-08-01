@@ -26,11 +26,10 @@ designs:
       tls_insecure: true
     storage:
       base: /data
-      database: redis://{{ setgetVar ".self.storage.database" ( print "localhost:" ( freePort .self.host "database-redis" "tcp" ) ) }}
 
   genesis: |
       facts:
-        - _hint: suffrage-genesis-join-permission-fact-v0.0.1
+        - _hint: suffrage-genesis-join-fact-v0.0.1
           nodes:
             - _hint: node-v0.0.1
               address: {{ .nodes.no0.address }}
@@ -44,6 +43,10 @@ designs:
           policy:
             _hint: network-policy-v0.0.1
             max_operations_in_proposal: 99
+            suffrage_candidate_lifespan: 33
+            suffrage_candidate_limiter:
+              _hint: fixed-suffrage-candidate-limiter-rule-v0.0.1
+              limit: 1 
   
   number-nodes: 2
 
@@ -62,15 +65,12 @@ expects:
 
   - condition: |
       {
-        "x.message": "new block saved",
+        "x.message": "genesis block generated",
         "x.blockmap.manifest.height": 0,
         "x.blockmap.node": "{{ .nodes.no0.address }}",
         "x.blockmap.signer": "{{ .nodes.no0.publickey }}"
       }
   
-  - condition: |
-      {"node": "no0", "x.message": "genesis block generated"}
-
   - condition: |
       {"node": "no0", "x.exit_code": 0, "stderr": true}
     actions:
@@ -84,10 +84,30 @@ expects:
           - node: [no1]
 
   - condition: |
-      {"node": "no1", "x.message": "new block merged", "x.height": 0}
+      {"node": "no1", "x.message": "new block merged", "x.blockmap.manifest.height": 0}
 
   - condition: |
       {"node": "no1", "x.message": "imported BlockMaps validated"}
 
   - condition: |
       {"node": "no1", "x.exit_code": 0, "stderr": true}
+
+  - condition: |
+      $ zcat {{ .self.host.Base }}/{{ .self.range.node }}/data/000/000/000/000/000/000/000/states.ndjson.gz | jq -c '. | select( .height == 0 )'
+    range:
+      - node: [no0, no1]
+
+  - condition: |
+      $ zcat {{ .self.host.Base }}/{{ .self.range.node }}/data/000/000/000/000/000/000/000/states.ndjson.gz | jq -c '. | select( .key == "suffrage" ) | select( (.value.nodes[0].address == "{{ .nodes.no0.address}}") and (.value.nodes[1].address == "{{ .nodes.no1.address}}") )'
+    range:
+      - node: [no0, no1]
+
+  - condition: |
+      $ zcat {{ .self.host.Base }}/{{ .self.range.node }}/data/000/000/000/000/000/000/000/states.ndjson.gz | jq -c '. | select( .key == "suffrage" ) | select( (.value.nodes[0].publickey == "{{ .nodes.no0.publickey}}") and (.value.nodes[1].publickey == "{{ .nodes.no1.publickey}}") )'
+    range:
+      - node: [no0, no1]
+
+  - condition: |
+      $ zcat {{ .self.host.Base }}/{{ .self.range.node }}/data/000/000/000/000/000/000/000/states.ndjson.gz | jq -c '. | select( .key == "network_policy" ) | .value.policy | select( ( .suffrage_candidate_limiter.limit == 1 ) and (.max_operations_in_proposal == 99) and ( .suffrage_candidate_lifespan == 33) )'
+    range:
+      - node: [no0, no1]

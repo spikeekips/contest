@@ -127,45 +127,40 @@ func (cmd *runCommand) prepareHosts() error {
 		return e(err, "")
 	}
 
-	jobch := make(chan util.ContextWorkerCallback)
+	worker := util.NewErrgroupWorker(context.Background(), int64(cmd.hosts.Len()))
+	defer worker.Close()
 
-	go func() {
-		_ = cmd.hosts.Traverse(func(host contest.Host) (bool, error) {
-			jobch <- func(ctx context.Context, _ uint64) error {
-				if err := cmd.prepareBinaries(host); err != nil {
-					return err
-				}
-
-				if _, err := host.FreePort("check", "tcp"); err != nil {
-					return err
-				}
-
-				if _, err := host.FreePort("check", "udp"); err != nil {
-					return err
-				}
-
-				return nil
+	_ = cmd.hosts.Traverse(func(host contest.Host) (bool, error) {
+		if err := worker.NewJob(func(context.Context, uint64) error {
+			if err := cmd.prepareBinaries(host); err != nil {
+				return err
 			}
 
-			jobch <- func(ctx context.Context, _ uint64) error {
-				if err := cmd.checkImages(host.Client(), DefaultNodeImage, DefaultRedisImage); err != nil {
-					return err
-				}
-
-				return nil
+			if _, err := host.FreePort("check", "tcp"); err != nil {
+				return err
 			}
 
-			return true, nil
-		})
+			if _, err := host.FreePort("check", "udp"); err != nil {
+				return err
+			}
 
-		close(jobch)
-	}()
+			return nil
+		}); err != nil {
+			return false, err
+		}
 
-	if err := util.RunErrgroupWorkerByChan(context.Background(), int64(cmd.hosts.Len()), jobch); err != nil {
-		return e(err, "")
-	}
+		if err := worker.NewJob(func(context.Context, uint64) error {
+			return cmd.checkImages(host.Client(), DefaultNodeImage, DefaultRedisImage)
+		}); err != nil {
+			return false, err
+		}
 
-	return nil
+		return true, nil
+	})
+
+	worker.Done()
+
+	return worker.Wait()
 }
 
 func (cmd *runCommand) prepareBinaries(host contest.Host) error {

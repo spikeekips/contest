@@ -20,11 +20,10 @@ designs:
       tls_insecure: true
     storage:
       base: /data
-      database: redis://{{ setgetVar ".self.storage.database" ( print "localhost:" ( freePort .self.host "database-redis" "tcp" ) ) }}
 
   genesis: |
       facts:
-        - _hint: suffrage-genesis-join-permission-fact-v0.0.1
+        - _hint: suffrage-genesis-join-fact-v0.0.1
           nodes:
             - _hint: node-v0.0.1
               address: {{ .nodes.no0.address }}
@@ -38,6 +37,10 @@ designs:
           policy:
             _hint: network-policy-v0.0.1
             max_operations_in_proposal: 99
+            suffrage_candidate_lifespan: 33
+            suffrage_candidate_limiter:
+              _hint: fixed-suffrage-candidate-limiter-rule-v0.0.1
+              limit: 1 
   
   number-nodes: 4
 
@@ -56,16 +59,11 @@ expects:
 
   - condition: |
       {
-        "x.message": "new block saved",
+        "x.message": "genesis block generated",
         "x.blockmap.manifest.height": 0,
         "x.blockmap.node": "{{ with ( index .nodes .self.range.node ) }}{{ .address }}{{ end }}",
         "x.blockmap.signer": "{{ with ( index .nodes .self.range.node ) }}{{ .publickey }}{{ end }}"
       }
-    range:
-      - node: [no0, no1, no2, no3]
-  
-  - condition: |
-      {"x.message": "genesis block generated"}
     range:
       - node: [no0, no1, no2, no3]
   

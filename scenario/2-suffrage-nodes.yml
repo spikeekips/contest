@@ -26,11 +26,10 @@ designs:
       tls_insecure: true
     storage:
       base: /data
-      database: redis://{{ setgetVar ".self.storage.database" ( print "localhost:" ( freePort .self.host "database-redis" "tcp" ) ) }}
 
   genesis: |
       facts:
-        - _hint: suffrage-genesis-join-permission-fact-v0.0.1
+        - _hint: suffrage-genesis-join-fact-v0.0.1
           nodes:
             - _hint: node-v0.0.1
               address: {{ .nodes.no0.address }}
@@ -43,8 +42,20 @@ designs:
           policy:
             _hint: network-policy-v0.0.1
             max_operations_in_proposal: 99
-  
+            suffrage_candidate_lifespan: 33
+            suffrage_candidate_limiter:
+              _hint: fixed-suffrage-candidate-limiter-rule-v0.0.1
+              limit: 1 
+
   number-nodes: 2
+  nodes:
+    no1: |
+      sync_sources:
+        - type: sync-source-node
+          address: {{ .nodes.no0.address }}
+          publickey: {{ .nodes.no0.publickey }}
+          publish: "{{ .nodes.no0.network.publish }}"
+          tls_insecure: true
 
 expects:
   - condition: |
@@ -61,14 +72,11 @@ expects:
 
   - condition: |
       {
-        "x.message": "new block saved",
+        "x.message": "genesis block generated",
         "x.blockmap.manifest.height": 0,
         "x.blockmap.node": "{{ .nodes.no0.address }}",
         "x.blockmap.signer": "{{ .nodes.no0.publickey }}"
       }
-  
-  - condition: |
-      {"node": "no0", "x.message": "genesis block generated"}
     registers:
       - assign: .matched.no0.genesis
 
@@ -92,12 +100,6 @@ expects:
           - "{{ .nodes.no0.network.publish }}#tls_insecure"
         range:
           - node: [no1]
-
-  - condition: |
-      {"node": "no0", "x.module": "memberlist", "x.node.node": "no1sas", "x.message": "node joined"}
-
-  - condition: |
-      {"node": "no1", "x.module": "memberlist", "x.node.node": "no0sas", "x.message": "node joined"}
 
   - condition: |
       {"node": "no1", "x.message": "state switched", "x.current_state": "STOPPED", "x.next_state.next": "SYNCING"}

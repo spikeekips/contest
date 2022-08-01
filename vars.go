@@ -11,6 +11,8 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 var (
@@ -185,7 +187,9 @@ func NormalizeVarsKey(s string) string {
 
 			return a
 		},
-		strings.Title,
+		func(i string) string {
+			return cases.Title(language.Und).String(i)
+		},
 		func(i string) string { // NOTE remove blank
 			return strings.ReplaceAll(i, " ", "")
 		},
@@ -363,6 +367,7 @@ func CompileTemplate(s string, vars *Vars, extra map[string]interface{}) (string
 
 	sc := bufio.NewScanner(bytes.NewReader(bf.Bytes()))
 	var ln int
+
 	for sc.Scan() {
 		l := sc.Text()
 		if strings.Contains(l, "<no value>") {

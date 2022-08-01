@@ -57,7 +57,7 @@ func (cmd *runCommand) startRedisContainer(
 		return e(err, "")
 	}
 
-	if err := h.StartContainer(ctx, config, hostconfig, nil, name, whenExit); err != nil {
+	if err := h.StartContainer(ctx, hostconfig, nil, name, whenExit); err != nil {
 		return e(err, "")
 	}
 
@@ -115,7 +115,6 @@ func (cmd *runCommand) runNode(ctx context.Context, host contest.Host, alias str
 
 	if err := host.StartContainer(
 		ctx,
-		config,
 		hostconfig,
 		nil,
 		name,

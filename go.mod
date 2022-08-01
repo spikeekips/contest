@@ -2,8 +2,6 @@ module github.com/spikeekips/contest2
 
 go 1.18
 
-replace github.com/spikeekips/mitum => /workspace/mitum/src
-
 require (
 	github.com/alecthomas/kong v0.6.0
 	github.com/docker/docker v20.10.17+incompatible
@@ -94,3 +92,5 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.2.0 // indirect
 )
+
+replace github.com/spikeekips/mitum => /workspace/mitum/src

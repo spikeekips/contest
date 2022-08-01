@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
@@ -56,7 +55,6 @@ type Host interface {
 	) error
 	StartContainer(
 		_ context.Context,
-		_ *container.Config,
 		_ *container.HostConfig,
 		_ *network.NetworkingConfig,
 		containerName string,
@@ -64,7 +62,7 @@ type Host interface {
 	) error
 	StopContainer(_ context.Context, containerName string, _ *time.Duration) error
 	RemoveContainer(_ context.Context, containerName string, _ dockerTypes.ContainerRemoveOptions) error
-	ContainerLogs(_ context.Context, containerName string, _ types.ContainerLogsOptions) (io.ReadCloser, error)
+	ContainerLogs(_ context.Context, containerName string, _ dockerTypes.ContainerLogsOptions) (io.ReadCloser, error)
 	FreePort(id, network string) (string, error)
 	RunCommand(string) (string, bool, error)
 }

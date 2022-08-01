@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/pkg/errors"
 	contest "github.com/spikeekips/contest2"
 )
@@ -76,6 +77,27 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 			},
 		); err != nil {
 			return errors.WithMessage(err, "failed to run host command")
+		}
+	case "run-redis":
+		err := cmd.hosts.TraverseByHost(func(h contest.Host, _ []string) (bool, error) {
+			if err := cmd.startRedisContainer(ctx, h, func(body container.ContainerWaitOKBody, err error) {
+				if err != nil {
+					cmd.exitch <- err
+
+					return
+				}
+
+				if body.Error != nil {
+					cmd.exitch <- errors.Errorf(body.Error.Message)
+				}
+			}); err != nil {
+				return false, err
+			}
+
+			return true, nil
+		})
+		if err != nil {
+			return errors.WithMessage(err, "failed to run redis")
 		}
 	}
 

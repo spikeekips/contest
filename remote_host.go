@@ -263,7 +263,6 @@ func (h *RemoteHost) checkEnv() error {
 		}
 
 		h.arch = arch
-
 	}
 
 	return nil

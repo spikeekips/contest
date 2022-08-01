@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 
-	"github.com/docker/docker/api/types"
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	dockerClient "github.com/docker/docker/client"
@@ -35,7 +34,7 @@ func PullImage(client *dockerClient.Client, image string) error {
 	r, err := client.ImagePull(
 		context.Background(),
 		image,
-		types.ImagePullOptions{},
+		dockerTypes.ImagePullOptions{},
 	)
 	if err != nil {
 		return errors.WithStack(err)
