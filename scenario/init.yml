@@ -1,5 +1,4 @@
-# for init node with genesis operations
-# - 4 nodes will do init
+# init node
 
 ---
 #ignore_abnormal_container_exit: true

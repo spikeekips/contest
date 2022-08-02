@@ -289,6 +289,7 @@ func (s ScenarioAction) CompileArgs(vars *Vars) (args []string, err error) {
 type ScenarioRegister struct {
 	Type   string `yaml:"type"`
 	Assign string `yaml:"assign"`
+	Format string `yaml:"format"`
 }
 
 func (s ScenarioRegister) IsValid([]byte) error {
@@ -308,6 +309,7 @@ func (s ScenarioRegister) IsValid([]byte) error {
 
 func (s ScenarioRegister) Compile(vars *Vars) (newregister ScenarioRegister, err error) {
 	newregister.Type = s.Type
+	newregister.Format = s.Format
 
 	newregister.Assign, err = CompileTemplate(s.Assign, vars, nil)
 	if err != nil {

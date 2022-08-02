@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"strings"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/pkg/errors"
@@ -44,19 +43,9 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 	case "host-command":
 		if err := cmd.rangeNodes(ctx, action,
 			func(ctx context.Context, host contest.Host, alias string, args []string) error {
-				var cmd string
-
-				for i := range args {
-					if i > 0 {
-						cmd += " "
-					}
-
-					switch j := args[i]; {
-					case strings.Contains(" ", strings.TrimSpace(j)):
-						cmd += `"` + j + `"`
-					default:
-						cmd += "" + j
-					}
+				cmd, err := contest.LoadHostCommandArgs(args)
+				if err != nil {
+					return err
 				}
 
 				log.Debug().
@@ -66,7 +55,7 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 					Str("cmd", cmd).
 					Msg("run host-command")
 
-				switch _, ok, err := host.RunCommand(cmd); {
+				switch _, _, ok, err := host.RunCommand(cmd); {
 				case err != nil:
 					return err
 				case !ok:

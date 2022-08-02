@@ -71,7 +71,7 @@ func (cmd *runCommand) Run() error {
 		cmd.db.InsertLogEntries,
 	)
 
-	_ = w.SetLogging(logging)
+	_ = w.SetLogging(mlogging)
 
 	go func() {
 		cmd.exitch <- <-w.Wait(ctx)

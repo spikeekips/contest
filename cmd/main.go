@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	logging *mitumlogging.Logging
-	log     *zerolog.Logger
+	mlogging *mitumlogging.Logging
+	log      *zerolog.Logger
 )
 
 var kongOptions = []kong.Option{
@@ -32,11 +32,11 @@ func main() {
 	if err != nil {
 		kctx.FatalIfErrorf(err)
 	}
-	logging = l
+	mlogging = l
 
 	log = mitumlogging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 		return lctx.Str("module", "main")
-	}).SetLogging(logging).Log()
+	}).SetLogging(mlogging).Log()
 
 	log.Debug().Str("command", kctx.Command()).Msg("start command")
 

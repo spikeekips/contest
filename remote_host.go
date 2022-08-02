@@ -117,7 +117,7 @@ func (h *RemoteHost) Upload(s io.Reader, name, dest string, mode os.FileMode) er
 		return e(err, "")
 	}
 
-	if _, err := h.runCommand(fmt.Sprintf(`chmod %o '%s'`, mode, newdest)); err != nil {
+	if _, _, err := h.runCommand(fmt.Sprintf(`chmod %o '%s'`, mode, newdest)); err != nil {
 		return e(err, "")
 	}
 
@@ -223,7 +223,7 @@ func (h *RemoteHost) Mkdir(dest string, mode os.FileMode) error {
 func (h *RemoteHost) LocalAddr() (addr netip.Addr, _ error) {
 	e := util.StringErrorFunc("failed to get local publish address")
 
-	out, err := h.runCommand(`echo "${SSH_CONNECTION}"`)
+	out, _, err := h.runCommand(`echo "${SSH_CONNECTION}"`)
 	if err != nil {
 		return addr, e(err, "")
 	}
@@ -244,14 +244,14 @@ func (h *RemoteHost) LocalAddr() (addr netip.Addr, _ error) {
 func (h *RemoteHost) checkEnv() error {
 	e := util.StringErrorFunc("failed to check env")
 
-	switch s, err := h.runCommand("id -u"); {
+	switch s, _, err := h.runCommand("id -u"); {
 	case err != nil:
 		return e(err, "")
 	default:
 		h.user = strings.TrimSuffix(s, "\n")
 	}
 
-	switch s, err := h.runCommand("uname -sm"); {
+	switch s, _, err := h.runCommand("uname -sm"); {
 	case err != nil:
 		return e(err, "")
 	default:
@@ -427,36 +427,41 @@ func (h *RemoteHost) remoteFreePort(network string, portmap nat.PortMap) (string
 	}
 }
 
-func (h *RemoteHost) RunCommand(cmd string) (string, bool, error) {
+func (h *RemoteHost) RunCommand(cmd string) (string, string, bool, error) {
 	var e *exec.ExitError
 
-	switch out, err := h.runCommand(cmd); {
+	switch stdout, stderr, err := h.runCommand(cmd); {
 	case err == nil:
-		return out, true, nil
+		return stdout, stderr, true, nil
 	case errors.As(err, &e):
-		return "", false, nil
+		return stdout, stderr, false, nil
 	default:
-		return "", false, errors.WithStack(err)
+		return stdout, stderr, false, errors.WithStack(err)
 	}
 }
 
-func (h *RemoteHost) runCommand(cmd string) (string, error) {
+func (h *RemoteHost) runCommand(cmd string) (string, string, error) {
 	session, err := h.sshSession()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	defer func() {
 		_ = session.Close()
 	}()
 
-	var b bytes.Buffer
+	var stdout, stderr bytes.Buffer
 
-	session.Stdout = &b
+	session.Stdout = &stdout
+	session.Stderr = &stderr
 
-	if err := session.Run(cmd); err != nil {
-		return "", err
+	err = session.Run(cmd)
+
+	h.Log().Debug().Str("stdout", stdout.String()).Str("stderr", stderr.String()).Msg("host command finished")
+
+	if err != nil {
+		return stdout.String(), stderr.String(), err
 	}
 
-	return b.String(), nil
+	return stdout.String(), stderr.String(), nil
 }

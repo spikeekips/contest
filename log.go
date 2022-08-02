@@ -205,7 +205,7 @@ func (w *WatchLogs) compileConditionQuery(s string, vars *Vars) (ConditionQuery,
 		}
 
 		return MongodbConditionQuery{findDBFunc: w.findDBFunc, m: m}, nil
-	case strings.HasPrefix(n, "$"):
+	case strings.HasPrefix(n, "$ "):
 		if len(alias) < 1 {
 			return nil, e(nil, "empty alias for hostCommandConditionQuery, %q", s)
 		}
@@ -253,7 +253,7 @@ func (w *WatchLogs) evaluate(
 	default:
 		ok = found
 
-		l.Trace().Interface("out", r).Msg("matched")
+		l.Debug().Interface("out", r).Msg("matched")
 	}
 
 	for i := range current.Registers {
@@ -288,7 +288,23 @@ func (w *WatchLogs) evaluate(
 }
 
 func (w *WatchLogs) register(record interface{}, register ScenarioRegister) error {
-	w.vars.Set(register.Assign, record)
+	var v interface{}
+
+	switch {
+	case register.Format == "json":
+		s, ok := record.(string)
+		if !ok {
+			return errors.Errorf("failed to format json; expected string, but %T", record)
+		}
+
+		if err := util.UnmarshalJSON([]byte(s), &v); err != nil {
+			return err
+		}
+	default:
+		v = record
+	}
+
+	w.vars.Set(register.Assign, v)
 
 	return nil
 }
@@ -358,10 +374,10 @@ func (c HostCommandConditionQuery) String() string {
 }
 
 func (c HostCommandConditionQuery) Find(ctx context.Context) (interface{}, bool, error) {
-	out, ok, err := c.host.RunCommand(c.cmd)
+	stdout, _, ok, err := c.host.RunCommand(c.cmd)
 	if err != nil {
 		return nil, false, nil
 	}
 
-	return strings.TrimRight(out, "\n"), ok, nil
+	return strings.TrimRight(stdout, "\n"), ok, nil
 }

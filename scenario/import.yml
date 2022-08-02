@@ -1,4 +1,4 @@
-# for import node with genesis operations
+# import existing block data
 # - no0 and no1 is in same host
 # - no0 nodes does init
 # - no1 nodes does import from no0

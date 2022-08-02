@@ -1,4 +1,4 @@
-# for init node with genesis operations
+# import
 # - 2 nodes: no0, no1
 # - no0 does init and run
 # - no0 stores blocks at leas1t 9

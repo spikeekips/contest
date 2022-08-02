@@ -175,21 +175,21 @@ func (h *LocalHost) Mkdir(dest string, mode os.FileMode) error {
 	return nil
 }
 
-func (h *LocalHost) RunCommand(cmd string) (string, bool, error) {
+func (h *LocalHost) RunCommand(cmd string) (string, string, bool, error) {
 	var e *exec.ExitError
 
-	switch out, err := h.runCommand(cmd); {
+	switch stdout, stderr, err := h.runCommand(cmd); {
 	case err == nil:
-		return out, true, nil
+		return stdout, stderr, true, nil
 	case errors.As(err, &e):
-		return "", false, nil
+		return stdout, stderr, false, nil
 	default:
-		return "", false, err
+		return stdout, stderr, false, err
 	}
 }
 
 func (h *LocalHost) checkArch() error {
-	out, err := h.runCommand("uname -sm")
+	out, _, err := h.runCommand("uname -sm")
 	if err != nil {
 		return errors.WithMessage(err, "failed to check arch")
 	}
@@ -206,18 +206,22 @@ func (h *LocalHost) checkArch() error {
 	return nil
 }
 
-func (h *LocalHost) runCommand(s string) (string, error) {
-	var b bytes.Buffer
+func (h *LocalHost) runCommand(s string) (string, string, error) {
+	var stdout, stderr bytes.Buffer
 
 	cmd := exec.Command("bash", "-c", s)
-	cmd.Stdout = &b
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
 	e := util.StringErrorFunc("failed to run command")
 
 	err := cmd.Run()
+
+	h.Log().Debug().Str("stdout", stdout.String()).Str("stderr", stderr.String()).Msg("host command finished")
+
 	if err != nil {
-		return "", e(err, "")
+		return stdout.String(), stderr.String(), e(err, "")
 	}
 
-	return b.String(), nil
+	return stdout.String(), stderr.String(), nil
 }

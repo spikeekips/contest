@@ -15,12 +15,15 @@ import (
 	"github.com/docker/docker/api/types/network"
 	dockerClient "github.com/docker/docker/client"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/logging"
 )
 
 var defaultContainerStopTimeout = time.Second
 
 type baseHost struct {
+	*logging.Logging
 	containers  *util.LockedMap
 	addr        *url.URL
 	files       map[string]string
@@ -34,6 +37,9 @@ type baseHost struct {
 
 func newBaseHost(base string, addr *url.URL, client *dockerClient.Client) (*baseHost, error) {
 	h := &baseHost{
+		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
+			return zctx.Str("module", "host").Stringer("addr", addr)
+		}),
 		base:       filepath.Join(base, util.ULID().String()),
 		addr:       addr,
 		client:     client,

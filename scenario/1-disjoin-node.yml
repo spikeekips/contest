@@ -1,10 +1,7 @@
-# 2 nodes can do consensus
+# 1 node disjoin
 # - 2 nodes: no0, no1
-# - no0 and no1 are in suffrage from genesis
-# - no0 does init
-# - no1 does import from no0
-# - no0 and no1 start
-# - no0 and no1 will be in consensus
+# - no0, no1 are in suffrage from genesis
+# - no1 tries to disjoin
 
 ---
 ignore_abnormal_container_exit: true
@@ -88,6 +85,8 @@ expects:
           - /cmd
           - run
           - config.yml
+          - --discovery
+          - "{{ .nodes.no1.network.publish }}#tls_insecure"
         range:
           - node: [no0]
 
@@ -102,23 +101,37 @@ expects:
           - node: [no1]
 
   - condition: |
-      {"node": "no1", "x.message": "state switched", "x.current_state": "STOPPED", "x.next_state.next": "SYNCING"}
-    registers:
-      - assign: .matched.no1.stopped_to_syncing
+      {"node": "no0", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
+  - condition: |
+      {"node": "no1", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no1.stopped_to_syncing._id }}" }, "node": "no1", "x.message": "state switched", "x.current_state": "SYNCING", "x.next_state.next": "JOINING"}
+      {"node": "no0", "x.message": "new block saved", "x.height": {"$gt": 3}}
     registers:
-      - assign: .matched.no1.syncing_to_joining
-
-  - condition: |
-      {"_id": {"$gt": "{{ .matched.no1.syncing_to_joining._id }}" }, "node": "no1", "x.message": "state switched", "x.current_state": "JOINING", "x.next_state.next": "CONSENSUS"}
-    registers:
-      - assign: .matched.no1.joining_to_consensus
-
-  - condition: |
-      {"_id": {"$gt": "{{ .matched.no1.joining_to_consensus._id }}" }, "node": "no1", "x.message": "new block saved"}
-    actions:
-      - type: "stop-nodes"
+      - assign: .matched.last_checked
+    actions: # send suffrage-disjoin operation
+      - type: "host-command"
+        args:
+          - |
+            $ op="{{ hostBase .self.host }}/{{ uuid }}.json"; echo '{ "fact": { "node": "{{ .nodes.no1.address }}", "token": "ZAU6zYh8R8if3lcRVGg5QA==", "_hint": "suffrage-disjoin-fact-v0.0.1", "start": 1 }, "_hint": "suffrage-disjoin-operation-v0.0.1" }' | {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no1.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no1.address }}" --token findme > $op; {{ hostFile .self.host "cmd" }} network client '{"_hint":"send-operation-header-v0.0.1"}' "{{ .nodes.no0.network.publish}}#tls_insecure" --body="$op"; {{ hostFile .self.host "cmd" }} network client '{"_hint":"send-operation-header-v0.0.1"}' "{{ .nodes.no1.network.publish}}#tls_insecure" --body="$op"
         range:
-          - node: [no0, no1]
+          - node: [no0]
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.last_checked._id }}"}, "node": "no1", "x.message": "state switched", "x.next_state.next": "SYNCING"}
+    registers:
+      - assign: .matched.no1.enter_consensus
+    actions:
+      - type: "host-command"
+        args:
+          - |
+            $ {{ hostFile .self.host "cmd" }} network client '{"key":"suffrage","_hint":"state-header-v0.0.1"}' "{{ .nodes.no1.network.publish}}#tls_insecure"
+        range:
+          - node: [no0]
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no1.enter_consensus._id }}"}, "node": "no0", "x.message": "new block saved"}
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no1.enter_consensus._id }}"}, "node": "no1", "x.message": "new block merged"}
+
+

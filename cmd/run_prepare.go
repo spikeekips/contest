@@ -15,6 +15,7 @@ import (
 	contest "github.com/spikeekips/contest2"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/localtime"
+	"github.com/spikeekips/mitum/util/logging"
 	"gopkg.in/yaml.v2"
 )
 
@@ -116,6 +117,10 @@ func (cmd *runCommand) prepareHosts() error {
 			}
 
 			host = i
+		}
+
+		if l, ok := host.(logging.SetLogging); ok {
+			_ = l.SetLogging(mlogging)
 		}
 
 		if err := cmd.hosts.New(host); err != nil {
@@ -279,6 +284,14 @@ func (cmd *runCommand) prepareScenario() error {
 		vars.Set(k, cmd.design.Vars[k])
 	}
 
+	vars = vars.AddFunc("uuid", func() string {
+		return util.UUID().String()
+	})
+
+	vars = vars.AddFunc("ulid", func() string {
+		return util.ULID().String()
+	})
+
 	vars = vars.AddFunc("hostFile", func(host contest.Host, f string) string {
 		if host == nil {
 			return "<no value>"
@@ -290,6 +303,14 @@ func (cmd *runCommand) prepareScenario() error {
 		}
 
 		return path
+	})
+
+	vars = vars.AddFunc("hostBase", func(host contest.Host) string {
+		if host == nil {
+			return "<no value>"
+		}
+
+		return host.Base()
 	})
 
 	vars = vars.AddFunc("freePort", func(host contest.Host, id, network string) string {

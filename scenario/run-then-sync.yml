@@ -1,4 +1,4 @@
-# for init node with genesis operations
+# sync node
 # - 2 nodes: no0, no1
 # - no1 is not in suffrage
 # - no0 does init and run
@@ -134,11 +134,11 @@ expects:
       {"node": "no1", "x.message": "syncer finished", "x.height": { "$gte": {{ .matched.no0_lastblock }} }}
 
   - condition: |
-       $ set -e; {{ hostFile .self.host "cmd" }}  network client '{"key":"suffrage","_hint":"state-header-v0.0.1"}' '{{ .nodes.no1.network.publish }}' | jq -e -c '(.v.value.nodes | length == 1) and (.v.value.nodes[0] | .address == "{{ .nodes.no0.address }}" and .publickey == "{{ .nodes.no0.publickey }}")'
+       $ set -e; {{ hostFile .self.host "cmd" }} network client '{"key":"suffrage","_hint":"state-header-v0.0.1"}' '{{ .nodes.no1.network.publish }}#tls_insecure' | jq -e -c '(.v.value.nodes | length == 1) and (.v.value.nodes[0] | .address == "{{ .nodes.no0.address }}" and .publickey == "{{ .nodes.no0.publickey }}")'
     range:
       - node: [no1]
 
   - condition: |
-       $ {{ hostFile .self.host "cmd" }} network client '{"_hint":"last-blockmap-header-v0.0.1"}' "{{ .nodes.no1.network.publish }}" | jq -e -c '.v.manifest | .height >= {{ .matched.no0_lastblock }}'
+       $ {{ hostFile .self.host "cmd" }} network client '{"_hint":"last-blockmap-header-v0.0.1"}' "{{ .nodes.no1.network.publish }}#tls_insecure" | jq -e -c '.v.manifest | .height >= {{ .matched.no0_lastblock }}'
     range:
       - node: [no1]

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	dockerTypes "github.com/docker/docker/api/types"
@@ -64,7 +65,7 @@ type Host interface {
 	RemoveContainer(_ context.Context, containerName string, _ dockerTypes.ContainerRemoveOptions) error
 	ContainerLogs(_ context.Context, containerName string, _ dockerTypes.ContainerLogsOptions) (io.ReadCloser, error)
 	FreePort(id, network string) (string, error)
-	RunCommand(string) (string, bool, error)
+	RunCommand(string) (string, string, bool, error)
 }
 
 func MachineToString(m elf.Machine) string {
@@ -80,4 +81,31 @@ type Artifact struct {
 	Target   string
 	Source   []byte
 	FileMode os.FileMode
+}
+
+func LoadHostCommandArgs(args []string) (string, error) {
+	var cmd string
+
+	for i := range args {
+		a := args[i]
+
+		if j := strings.TrimSpace(a); strings.HasPrefix(j, "$ ") {
+			cmd = j[2:]
+
+			continue
+		}
+
+		if i > 0 {
+			cmd += " "
+		}
+
+		switch {
+		case strings.Contains(" ", a):
+			cmd += `'` + strings.Replace(a, "'", "\\'", -1) + `'`
+		default:
+			cmd += a
+		}
+	}
+
+	return cmd, nil
 }
