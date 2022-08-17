@@ -43,6 +43,7 @@ designs:
             suffrage_candidate_limiter:
               _hint: fixed-suffrage-candidate-limiter-rule-v0.0.1
               limit: 1 
+            max_suffrage_size: 99
 
   number-nodes: 2
   nodes:
@@ -113,7 +114,7 @@ expects:
       - type: "host-command"
         args:
           - |
-            $ op="{{ hostBase .self.host }}/{{ uuid }}.json"; echo '{ "fact": { "node": "{{ .nodes.no1.address }}", "token": "ZAU6zYh8R8if3lcRVGg5QA==", "_hint": "suffrage-disjoin-fact-v0.0.1", "start": 1 }, "_hint": "suffrage-disjoin-operation-v0.0.1" }' | {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no1.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no1.address }}" --token findme > $op; {{ hostFile .self.host "cmd" }} network client '{"_hint":"send-operation-header-v0.0.1"}' "{{ .nodes.no0.network.publish}}#tls_insecure" --body="$op"; {{ hostFile .self.host "cmd" }} network client '{"_hint":"send-operation-header-v0.0.1"}' "{{ .nodes.no1.network.publish}}#tls_insecure" --body="$op"
+            $ op="{{ hostBase .self.host }}/{{ uuid }}.json"; echo '{ "fact": { "node": "{{ .nodes.no1.address }}", "token": "ZAU6zYh8R8if3lcRVGg5QA==", "_hint": "suffrage-disjoin-fact-v0.0.1", "start": 1 }, "_hint": "suffrage-disjoin-operation-v0.0.1" }' | {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no1.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no1.address }}" --token findme > $op; {{ hostFile .self.host "cmd" }} network client "{{ .network_id }}" '{"_hint":"send-operation-header-v0.0.1"}' "{{ .nodes.no0.network.publish}}#tls_insecure" --body="$op"; {{ hostFile .self.host "cmd" }} network client "{{ .network_id }}" '{"_hint":"send-operation-header-v0.0.1"}' "{{ .nodes.no1.network.publish}}#tls_insecure" --body="$op"
         range:
           - node: [no0]
 
@@ -125,7 +126,7 @@ expects:
       - type: "host-command"
         args:
           - |
-            $ {{ hostFile .self.host "cmd" }} network client '{"key":"suffrage","_hint":"state-header-v0.0.1"}' "{{ .nodes.no1.network.publish}}#tls_insecure"
+            $ {{ hostFile .self.host "cmd" }} network client "{{ .network_id }}" '{"key":"suffrage","_hint":"state-header-v0.0.1"}' "{{ .nodes.no1.network.publish}}#tls_insecure"
         range:
           - node: [no0]
 
