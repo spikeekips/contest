@@ -59,7 +59,7 @@ expects:
         args:
           - /cmd
           - init
-          - config.yml
+          - --design=config.yml
           - genesis.yml
         range:
           - node: [no0]
@@ -79,7 +79,7 @@ expects:
         args:
           - /cmd
           - import
-          - config.yml
+          - --design=config.yml
           - /host/no0/data
         range:
           - node: [no1]

@@ -16,19 +16,23 @@ var (
 var kongOptions = []kong.Option{
 	kong.Name("contest"),
 	kong.Vars{
-		"mongodb_uri": defaultMongodbURI,
+		"mongodb_uri":     defaultMongodbURI,
+		"log_out":         "stderr",
+		"log_format":      "terminal",
+		"log_level":       "debug",
+		"log_force_color": "false",
 	},
 }
 
 func main() {
 	var cli struct {
-		launch.Logging `embed:"" prefix:"log."`
-		Run            runCommand `cmd:"" help:"run contest"`
+		launch.LoggingFlags `embed:"" prefix:"log."`
+		Run                 runCommand `cmd:"" help:"run contest"`
 	}
 
 	kctx := kong.Parse(&cli, kongOptions...)
 
-	l, err := launch.SetupLoggingFromFlags(cli.Logging)
+	l, err := launch.SetupLoggingFromFlags(cli.LoggingFlags)
 	if err != nil {
 		kctx.FatalIfErrorf(err)
 	}

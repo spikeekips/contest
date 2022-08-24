@@ -52,7 +52,7 @@ expects:
         args:
           - /cmd
           - init
-          - config.yml
+          - --design=config.yml
           - genesis.yml
         range:
           - node: [no0, no1, no2, no3]

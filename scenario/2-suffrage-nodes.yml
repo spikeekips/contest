@@ -66,7 +66,7 @@ expects:
         args:
           - /cmd
           - init
-          - config.yml
+          - --design=config.yml
           - genesis.yml
         range:
           - node: [no0]
@@ -88,7 +88,7 @@ expects:
         args:
           - /cmd
           - run
-          - config.yml
+          - --design=config.yml
         range:
           - node: [no0]
 
@@ -96,14 +96,14 @@ expects:
         args:
           - /cmd
           - run
-          - config.yml
+          - --design=config.yml
           - --discovery
           - "{{ .nodes.no0.network.publish }}#tls_insecure"
         range:
           - node: [no1]
 
   - condition: |
-      {"node": "no1", "x.message": "state switched", "x.current_state": "STOPPED", "x.next_state.next": "SYNCING"}
+      {"node": "no1", "x.message": "state switched", "x.current_state": "BOOTING", "x.next_state.next": "SYNCING"}
     registers:
       - assign: .matched.no1.stopped_to_syncing
 

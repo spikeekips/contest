@@ -61,8 +61,8 @@ expects:
         args:
           - /cmd
           - init
-          - config.yml
           - genesis.yml
+          - --design=config.yml
         range:
           - node: [no0]
 
@@ -83,7 +83,7 @@ expects:
         args:
           - /cmd
           - run
-          - config.yml
+          - --design=config.yml
         range:
           - node: [no0]
 
@@ -122,7 +122,7 @@ expects:
         args:
           - /cmd
           - run
-          - config.yml
+          - --design=config.yml
           - --discovery
           - "{{ .nodes.no0.network.publish }}#tls_insecure"
         range:

@@ -67,7 +67,7 @@ expects:
         args:
           - /cmd
           - init
-          - config.yml
+          - --design=config.yml
           - genesis.yml
         range:
           - node: [no0]
@@ -87,7 +87,7 @@ expects:
         args:
           - /cmd
           - run
-          - config.yml
+          - --design=config.yml
         range:
           - node: [no0]
 
@@ -105,7 +105,7 @@ expects:
         args:
           - /cmd
           - run
-          - config.yml
+          - --design=config.yml
           - --hold
           - ""
         range:
@@ -122,24 +122,24 @@ expects:
         args:
           - /cmd
           - run
-          - config.yml
+          - --design=config.yml
           - --discovery
           - "{{ .nodes.no0.network.publish }}#tls_insecure"
         range:
           - node: [no1]
 
   - condition: |
-      {"node": "no1", "x.message": "state switched", "x.current_state": "STOPPED", "x.next_state.next": "SYNCING"}
+      {"node": "no1", "x.message": "state switched", "x.current_state": "BOOTING", "x.next_state.next": "SYNCING"}
 
   - condition: |
       {"node": "no1", "x.message": "syncer finished", "x.height": { "$gte": {{ .matched.no0_lastblock }} }}
 
   - condition: |
-       $ set -e; {{ hostFile .self.host "cmd" }} network client '{"key":"suffrage","_hint":"state-header-v0.0.1"}' '{{ .nodes.no1.network.publish }}#tls_insecure' | jq -e -c '(.v.value.nodes | length == 1) and (.v.value.nodes[0] | .address == "{{ .nodes.no0.address }}" and .publickey == "{{ .nodes.no0.publickey }}")'
+       $ set -e; {{ hostFile .self.host "cmd" }} network client '{{ .network_id }}' '{"key":"suffrage","_hint":"state-header-v0.0.1"}' '{{ .nodes.no1.network.publish }}#tls_insecure' | jq -e -c '(.value.nodes | length == 1) and (.value.nodes[0] | .address == "{{ .nodes.no0.address }}" and .publickey == "{{ .nodes.no0.publickey }}")'
     range:
       - node: [no1]
 
   - condition: |
-       $ {{ hostFile .self.host "cmd" }} network client '{"_hint":"last-blockmap-header-v0.0.1"}' "{{ .nodes.no1.network.publish }}#tls_insecure" | jq -e -c '.v.manifest | .height >= {{ .matched.no0_lastblock }}'
+       $ {{ hostFile .self.host "cmd" }} network client '{{ .network_id }}' '{"_hint":"last-blockmap-header-v0.0.1"}' "{{ .nodes.no1.network.publish }}#tls_insecure" | jq -e -c '.manifest | .height >= {{ .matched.no0_lastblock }}'
     range:
       - node: [no1]
