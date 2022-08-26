@@ -194,8 +194,8 @@ func (h *baseHost) CreateContainer(
 	networkingConfig *network.NetworkingConfig,
 	name string,
 ) error {
-	_, err := h.containers.Set(name, func(i interface{}) (interface{}, error) {
-		if !util.IsNilLockedValue(i) {
+	_, err := h.containers.Set(name, func(found bool, i interface{}) (interface{}, error) {
+		if found {
 			return i, nil
 		}
 
