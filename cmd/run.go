@@ -47,8 +47,23 @@ func (cmd *runCommand) Run() error {
 
 	cmd.exitch = make(chan error)
 
+	started := time.Now()
+
 	defer func() {
-		err := cmd.closeHosts()
+		timeout := time.Second * 30
+		if cmd.Timeout > 0 {
+			d := cmd.Timeout - time.Since(started) - (time.Second * 5)
+			if d < 1 {
+				return
+			}
+
+			timeout = d
+		}
+
+		cctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+
+		err := cmd.closeHosts(cctx)
 		if err != nil {
 			log.Error().Err(err).Msg("failed to close hosts")
 		}
@@ -105,7 +120,7 @@ func (cmd *runCommand) Run() error {
 	return nil
 }
 
-func (cmd *runCommand) closeHosts() error {
+func (cmd *runCommand) closeHosts(ctx context.Context) error {
 	log.Debug().Msg("trying to close hosts")
 	defer log.Debug().Msg("hosts closed")
 
@@ -127,7 +142,7 @@ func (cmd *runCommand) closeHosts() error {
 		}
 	}
 
-	worker := util.NewErrgroupWorker(context.Background(), int64(cmd.hosts.Len()))
+	worker := util.NewErrgroupWorker(ctx, int64(cmd.hosts.Len()))
 	defer worker.Close()
 
 	_ = cmd.hosts.Traverse(func(host contest.Host) (bool, error) {

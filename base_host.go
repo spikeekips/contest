@@ -293,7 +293,7 @@ func (h *baseHost) StopContainer(ctx context.Context, name string, timeout *time
 func (h *baseHost) RemoveContainer(ctx context.Context, name string, options dockerTypes.ContainerRemoveOptions) error {
 	e := util.StringErrorFunc("failed to remove container")
 
-	if err := h.containers.Remove(name, func(i interface{}) error {
+	if _, err := h.containers.Remove(name, func(i interface{}) error {
 		if util.IsNilLockedValue(i) {
 			return util.ErrNotFound.Errorf("container not found")
 		}
