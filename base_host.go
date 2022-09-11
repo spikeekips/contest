@@ -294,8 +294,8 @@ func (h *baseHost) RemoveContainer(ctx context.Context, name string, options doc
 	e := util.StringErrorFunc("failed to remove container")
 
 	if _, err := h.containers.Remove(name, func(i interface{}) error {
-		if util.IsNilLockedValue(i) {
-			return util.ErrNotFound.Errorf("container not found")
+		if i == nil {
+			return nil
 		}
 
 		if err := h.client.ContainerRemove(ctx, i.(string), options); err != nil { //nolint:forcetypeassert //...
