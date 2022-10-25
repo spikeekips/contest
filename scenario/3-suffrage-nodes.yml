@@ -1,9 +1,13 @@
-# 1 node disjoin
-# - 2 nodes: no0, no1
-# - no0, no1 are in suffrage from genesis
-# - no1 tries to disjoin
+# 3 nodes can do consensus
+# - 3 nodes: no0, no1, no2
+# - all nodes are in suffrage from genesis
+# - no0 does init
+# - all nodes start
+# - all nodes will be in consensus
 
 ---
+ignore_abnormal_container_exit: true
+
 vars:
   .network_id: mitum contest; Sat 26 Dec 2020 05:29:13 AM KST
 
@@ -32,6 +36,9 @@ designs:
             - _hint: node-v0.0.1
               address: {{ .nodes.no1.address }}
               publickey: {{ .nodes.no1.publickey }}
+            - _hint: node-v0.0.1
+              address: {{ .nodes.no2.address }}
+              publickey: {{ .nodes.no2.publickey }}
      
         - _hint: genesis-network-policy-fact-v0.0.1
           policy:
@@ -44,9 +51,17 @@ designs:
             max_suffrage_size: 99
             suffrage_withdraw_lifespan: 99
 
-  number-nodes: 2
+  number-nodes: 3
   nodes:
     no1: |
+      sync_sources:
+        - type: sync-source-node
+          address: {{ .nodes.no0.address }}
+          publickey: {{ .nodes.no0.publickey }}
+          publish: "{{ .nodes.no0.network.publish }}"
+          tls_insecure: true
+
+    no2: |
       sync_sources:
         - type: sync-source-node
           address: {{ .nodes.no0.address }}
@@ -96,40 +111,44 @@ expects:
           - --discovery
           - "{{ .nodes.no0.network.publish }}#tls_insecure"
         range:
-          - node: [no1]
+          - node: [no1, no2]
 
   - condition: |
-      {"node": "no0", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
-  - condition: |
-      {"node": "no1", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
-
-  - condition: |
-      {"node": "no0", "x.message": "new block saved", "x.height": {"$gt": 3}}
+      {"node": "no1", "x.message": "state switched", "x.current_state": "BOOTING", "x.next_state.next": "SYNCING"}
     registers:
-      - assign: .matched.last_checked
-    actions: # send suffrage-disjoin operation
-      - type: "host-command"
-        args:
-          - |
-            $ op="{{ hostBase .self.host }}/{{ uuid }}.json"; echo '{ "fact": { "node": "{{ .nodes.no1.address }}", "_hint": "suffrage-disjoin-fact-v0.0.1", "start": 1 }, "_hint": "suffrage-disjoin-operation-v0.0.1" }' | {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no1.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no1.address }}" --token findme > $op; {{ hostFile .self.host "cmd" }} network client '{"_hint":"send-operation-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" --body="$op"; {{ hostFile .self.host "cmd" }} network client '{"_hint":"send-operation-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" --body="$op"
-        range:
-          - node: [no0]
+      - assign: .matched.no1.stopped_to_syncing
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.last_checked._id }}"}, "node": "no1", "x.message": "state switched", "x.next_state.next": "SYNCING"}
+      {"node": "no2", "x.message": "state switched", "x.current_state": "BOOTING", "x.next_state.next": "SYNCING"}
     registers:
-      - assign: .matched.no1.enter_consensus
-    actions:
-      - type: "host-command"
-        args:
-          - |
-            $ {{ hostFile .self.host "cmd" }} network client '{"key":"suffrage","_hint":"state-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure"
-        range:
-          - node: [no0]
+      - assign: .matched.no2.stopped_to_syncing
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no1.enter_consensus._id }}"}, "node": "no0", "x.message": "new block saved"}
+      {"_id": {"$gt": "{{ .matched.no1.stopped_to_syncing._id }}" }, "node": "no1", "x.message": "state switched", "x.current_state": "SYNCING", "x.next_state.next": "JOINING"}
+    registers:
+      - assign: .matched.no1.syncing_to_joining
+
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no1.enter_consensus._id }}"}, "node": "no1", "x.message": "new block merged"}
+      {"_id": {"$gt": "{{ .matched.no2.stopped_to_syncing._id }}" }, "node": "no2", "x.message": "state switched", "x.current_state": "SYNCING", "x.next_state.next": "JOINING"}
+    registers:
+      - assign: .matched.no2.syncing_to_joining
 
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no1.syncing_to_joining._id }}" }, "node": "no1", "x.message": "state switched", "x.current_state": "JOINING", "x.next_state.next": "CONSENSUS"}
+    registers:
+      - assign: .matched.no1.joining_to_consensus
 
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no2.syncing_to_joining._id }}" }, "node": "no2", "x.message": "state switched", "x.current_state": "JOINING", "x.next_state.next": "CONSENSUS"}
+    registers:
+      - assign: .matched.no2.joining_to_consensus
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no2.joining_to_consensus._id }}" }, "node": "no2", "x.message": "new block saved"}
+    registers:
+      - assign: .matched.no2.new_block_saved
+
+  - condition: |
+      {"x.height": {"$gt": {{ .matched.no2.new_block_saved.x.height }} }, "x.message": "new block saved"}
+    range:
+      - node: [no0, no1, no2]

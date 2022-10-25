@@ -48,6 +48,7 @@ designs:
               _hint: fixed-suffrage-candidate-limiter-rule-v0.0.1
               limit: 1 
             max_suffrage_size: 99
+            suffrage_withdraw_lifespan: 99
   
   number-nodes: 4
   nodes:
@@ -135,11 +136,11 @@ expects:
       {"node": "no1", "x.message": "syncer finished", "x.height": { "$gte": {{ .matched.no0_lastblock }} }}
 
   - condition: |
-       $ set -e; {{ hostFile .self.host "cmd" }} network client '{{ .network_id }}' '{"key":"suffrage","_hint":"state-header-v0.0.1"}' '{{ .nodes.no1.network.publish }}#tls_insecure' | jq -e -c '(.value.nodes | length == 1) and (.value.nodes[0] | .address == "{{ .nodes.no0.address }}" and .publickey == "{{ .nodes.no0.publickey }}")'
+       $ set -e; {{ hostFile .self.host "cmd" }} network client '{"key":"suffrage","_hint":"state-header-v0.0.1"}' "{{ .network_id }}" '{{ .nodes.no1.network.publish }}#tls_insecure' | jq -e -c '(.value.nodes | length == 1) and (.value.nodes[0] | .address == "{{ .nodes.no0.address }}" and .publickey == "{{ .nodes.no0.publickey }}")'
     range:
       - node: [no1]
 
   - condition: |
-       $ {{ hostFile .self.host "cmd" }} network client '{{ .network_id }}' '{"_hint":"last-blockmap-header-v0.0.1"}' "{{ .nodes.no1.network.publish }}#tls_insecure" | jq -e -c '.manifest | .height >= {{ .matched.no0_lastblock }}'
+       $ {{ hostFile .self.host "cmd" }} network client '{"_hint":"last-blockmap-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no1.network.publish }}#tls_insecure" | jq -e -c '.manifest | .height >= {{ .matched.no0_lastblock }}'
     range:
       - node: [no1]

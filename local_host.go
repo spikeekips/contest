@@ -217,7 +217,7 @@ func (h *LocalHost) runCommand(s string) (string, string, error) {
 
 	err := cmd.Run()
 
-	h.Log().Debug().Str("stdout", stdout.String()).Str("stderr", stderr.String()).Msg("host command finished")
+	h.Log().Debug().Str("command", s).Str("stdout", stdout.String()).Str("stderr", stderr.String()).Msg("host command finished")
 
 	if err != nil {
 		return stdout.String(), stderr.String(), e(err, "")
