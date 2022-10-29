@@ -155,22 +155,12 @@ expects:
       - node: [no2]
 
   - condition: |
-      {"node": "no0", "x.message": "ballot voted", "x.ballot.sign_fact.fact.point.height": 4, "x.ballot.sign_fact.fact.point.stage": "INIT", "x.ballot.sign_fact.node": "{{ .nodes.no0.address }}" }
-    registers:
-      - assign: .matched.no0.init_ballot
-
-  - condition: |
-      {"node": "no0", "x.message": "ballot voted", "x.ballot.sign_fact.fact.point.height": 4, "x.ballot.sign_fact.fact.point.stage": "ACCEPT", "x.ballot.sign_fact.node": "{{ .nodes.no0.address }}" }
-    registers:
-      - assign: .matched.no0.accept_ballot
-
-  - condition: |
-      {"x.message": "ballot voted", "x.ballot.sign_fact.fact.hash": "{{ .matched.no0.init_ballot.x.ballot.sign_fact.fact.hash }}", "x.ballot.sign_fact.fact.point.height": 4, "x.ballot.sign_fact.fact.point.stage": "INIT", "x.ballot.sign_fact.node": "{{ .nodes.no2.address }}" }
+      {"x.message": "ballot voted", "x.ballot.sign_fact.fact.point.height": { "$gte": 6 }, "x.ballot.sign_fact.fact.point.stage": "INIT", "x.ballot.sign_fact.node": "{{ .nodes.no2.address }}" }
     range:
       - node: [no0, no1]
 
   - condition: |
-      {"x.message": "ballot voted", "x.ballot.sign_fact.fact.hash": "{{ .matched.no0.accept_ballot.x.ballot.sign_fact.fact.hash }}", "x.ballot.sign_fact.fact.point.height": 4, "x.ballot.sign_fact.fact.point.stage": "ACCEPT", "x.ballot.sign_fact.node": "{{ .nodes.no2.address }}" }
+      {"x.message": "ballot voted", "x.ballot.sign_fact.fact.point.height": { "$gte": 6 }, "x.ballot.sign_fact.fact.point.stage": "ACCEPT", "x.ballot.sign_fact.node": "{{ .nodes.no2.address }}" }
     range:
       - node: [no0, no1]
 
