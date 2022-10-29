@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -70,11 +71,11 @@ func (cmd *runCommand) runNode(ctx context.Context, host contest.Host, alias str
 	var foundloglevel, foundlogformat, foundlogout bool
 	for i := range args {
 		switch {
-		case args[i] == "--log.level":
+		case strings.HasPrefix(args[i], "--log.level"):
 			foundloglevel = true
-		case args[i] == "--log.format":
+		case strings.HasPrefix(args[i], "--log.format"):
 			foundlogformat = true
-		case args[i] == "--log.out":
+		case strings.HasPrefix(args[i], "--log.out"):
 			foundlogout = true
 		}
 
