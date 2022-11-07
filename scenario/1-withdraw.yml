@@ -126,22 +126,12 @@ expects:
       - assign: .matched.no2.stopped_to_syncing
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no1.stopped_to_syncing._id }}" }, "node": "no1", "x.message": "state switched", "x.current_state": "SYNCING", "x.next_state.next": "JOINING"}
-    registers:
-      - assign: .matched.no1.syncing_to_joining
-
-  - condition: |
-      {"_id": {"$gt": "{{ .matched.no2.stopped_to_syncing._id }}" }, "node": "no2", "x.message": "state switched", "x.current_state": "SYNCING", "x.next_state.next": "JOINING"}
-    registers:
-      - assign: .matched.no2.syncing_to_joining
-
-  - condition: |
-      {"_id": {"$gt": "{{ .matched.no1.syncing_to_joining._id }}" }, "node": "no1", "x.message": "state switched", "x.current_state": "JOINING", "x.next_state.next": "CONSENSUS"}
+      {"_id": {"$gt": "{{ .matched.no1.stopped_to_syncing._id }}" }, "node": "no1", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
     registers:
       - assign: .matched.no1.joining_to_consensus
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no2.syncing_to_joining._id }}" }, "node": "no2", "x.message": "state switched", "x.current_state": "JOINING", "x.next_state.next": "CONSENSUS"}
+      {"_id": {"$gt": "{{ .matched.no2.stopped_to_syncing._id }}" }, "node": "no2", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
     registers:
       - assign: .matched.no2.joining_to_consensus
 
@@ -187,6 +177,7 @@ expects:
         cat $state | jq -e -c '.value.nodes[] | select( (.address == "{{ .nodes.no1.address }}") and (.publickey == "{{ .nodes.no1.publickey }}"))'
     range:
       - node: [no1]
+    interval: 2s
 
   - condition: |
       $ cat "{{ hostBase .self.host }}/withdraw-state.json" | jq -e -c '.height'
@@ -205,17 +196,20 @@ expects:
   - condition: |
       $ {{ hostFile .self.host "cmd" }} network client '{"_hint":"node-info-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" | \
         jq -e -c 'select(.consensus.state == "CONSENSUS")'
+    interval: 2s
     range:
       - node: [no1]
 
   - condition: |
       $ {{ hostFile .self.host "cmd" }} network client '{"_hint":"node-info-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" | \
         jq -e -c 'select(.consensus.state == "CONSENSUS")'
+    interval: 2s
     range:
       - node: [no1]
 
   - condition: |
       $ {{ hostFile .self.host "cmd" }} network client '{"_hint":"node-info-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" | \
         jq -e -c 'select(.consensus.state == "SYNCING")'
+    interval: 2s
     range:
       - node: [no1]

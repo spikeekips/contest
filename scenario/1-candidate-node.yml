@@ -110,7 +110,7 @@ expects:
       - assign: .matched.candidate_state_in_state
         format: json
   - condition: |
-     $ {{ hostFile .self.host "cmd" }} network client '{"key":"suffrage_candidate","_hint":"state-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" | jq -e -c '. as $root | .value.nodes[] | select( (.node.address == "{{ .nodes.no1.address }}") and (.node.publickey == "{{ .nodes.no1.publickey }}"))'
+      $ {{ hostFile .self.host "cmd" }} network client '{"key":"suffrage_candidate","_hint":"state-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" | jq -e -c '. as $root | .value.nodes[] | select( (.node.address == "{{ .nodes.no1.address }}") and (.node.publickey == "{{ .nodes.no1.publickey }}"))'
     range:
       - node: [no0]
     registers:
