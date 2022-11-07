@@ -69,9 +69,6 @@ func NewWatchLogs(
 func (w *WatchLogs) start(ctx context.Context, savelogch chan LogEntry) error {
 	go w.saveLogs(ctx, savelogch)
 
-	ticker := time.NewTicker(w.checkInterval)
-	defer ticker.Stop()
-
 	active, queries, err := w.newactive()
 	if err != nil {
 		return err
@@ -79,31 +76,42 @@ func (w *WatchLogs) start(ctx context.Context, savelogch chan LogEntry) error {
 
 	w.Log().Debug().Stringer("query", queries[0]).Msg("querying")
 
+	wait := w.checkInterval
+
 end:
 	for {
+		var updated bool
+
+		switch left, ok, err := w.evaluate(ctx, active, queries); {
+		case err != nil:
+			return err
+		case !ok:
+		case len(w.actives) < 1: // NOTE finished
+			break end
+		case len(left) < 1:
+			active, queries, err = w.newactive()
+			if err != nil {
+				return err
+			}
+
+			if active.Interval > 1 {
+				wait = active.Interval
+			}
+
+			updated = true
+		default:
+			queries = left
+			updated = true
+		}
+
+		if updated {
+			w.Log().Debug().Dur("interval", wait).Stringer("query", queries[0]).Msg("querying")
+		}
+
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
-			switch left, ok, err := w.evaluate(ctx, active, queries); {
-			case err != nil:
-				return err
-			case !ok:
-				continue end
-			case len(w.actives) < 1: // NOTE finished
-				break end
-			case len(left) < 1:
-				active, queries, err = w.newactive()
-				if err != nil {
-					return err
-				}
-
-				w.Log().Debug().Stringer("query", queries[0]).Msg("querying")
-			default:
-				queries = left
-
-				w.Log().Debug().Stringer("query", queries[0]).Msg("querying")
-			}
+		case <-time.After(wait):
 		}
 	}
 

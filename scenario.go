@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/spikeekips/mitum/util"
 )
@@ -121,6 +122,7 @@ type ExpectScenario struct {
 	Range     []map[string][]string `yaml:"range"`
 	Actions   []ScenarioAction      `yaml:"actions"`
 	Registers []ScenarioRegister    `yaml:"registers"`
+	Interval  time.Duration         `yaml:"interval"`
 }
 
 func (s ExpectScenario) IsValid(b []byte) error {
@@ -140,6 +142,10 @@ func (s ExpectScenario) IsValid(b []byte) error {
 		if err := s.Registers[i].IsValid(b); err != nil {
 			return e(err, "")
 		}
+	}
+
+	if s.Interval < 0 {
+		return e(nil, "under zero interval")
 	}
 
 	return nil
@@ -182,6 +188,7 @@ func (s ExpectScenario) RangeValues() []map[string]interface{} {
 func (s ExpectScenario) Compile(vars *Vars) (newexpect ExpectScenario, err error) {
 	newexpect.Condition = s.Condition
 	newexpect.Actions = make([]ScenarioAction, len(s.Actions))
+	newexpect.Interval = s.Interval
 
 	copy(newexpect.Actions, s.Actions)
 
