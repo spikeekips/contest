@@ -1,17 +1,13 @@
 # 3 nodes can do consensus
 # - 3 nodes: no0, no1, no2
-# - all nodes are in suffrage from genesis, but threshold is under safe
-# threshold, 67
+# - all nodes are in suffrage from genesis
 # - no0 does init
-# - no0, no1 start
-# - no0, no1 will be in consensus without no2
-# - no2 starts
-# - no2 set n0 as sync source
-# - no2 has handicap, which sync one block with delay, 9s; it will prevent no2
-# to enter consensus.
-# - no2 still mimic(broadcast) incoming ballot from n0
+# - all nodes start
+# - all nodes will be in consensus
 
 ---
+ignore_abnormal_container_exit: true
+
 vars:
   .network_id: mitum contest; Sat 26 Dec 2020 05:29:13 AM KST
 
@@ -29,8 +25,6 @@ designs:
       tls_insecure: true
     storage:
       base: /data
-    parameters:
-      threshold: 60
 
   genesis: |
       facts:
@@ -84,7 +78,6 @@ expects:
           - /cmd
           - init
           - --design=config.yml
-          - --dev.allow-risky-threshold
           - genesis.yml
         range:
           - node: [no0]
@@ -107,7 +100,6 @@ expects:
           - /cmd
           - run
           - --design=config.yml
-          - --dev.allow-risky-threshold
         range:
           - node: [no0]
 
@@ -118,54 +110,31 @@ expects:
           - --design=config.yml
           - --discovery
           - "{{ .nodes.no0.network.publish }}#tls_insecure"
-          - --dev.allow-risky-threshold
         range:
-          - node: [no1]
-
-      - type: "run-nodes"
-        args:
-          - /cmd
-          - run
-          - --design=config.yml
-          - --discovery
-          - "{{ .nodes.no0.network.publish }}#tls_insecure"
-          - --dev.allow-risky-threshold
-          - --dev.delay-syncer=9s
-        range:
-          - node: [no2]
+          - node: [no1, no2]
 
   - condition: |
-      {"x.message": "state switched", "x.next_state.next": "CONSENSUS"}
-    range:
-      - node: [no0, no1]
+      {"node": "no1", "x.message": "state switched", "x.current_state": "BOOTING", "x.next_state.next": "SYNCING"}
 
   - condition: |
-      {"node": "no2", "x.message": "state switched", "x.next_state.next": "SYNCING"}
+      {"node": "no2", "x.message": "state switched", "x.current_state": "BOOTING", "x.next_state.next": "SYNCING"}
+
+  - condition: |
+      {"node": "no1", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
     registers:
-      - assign: .matched.no2.stopped_to_syncing
+      - assign: .matched.no1.joining_to_consensus
 
   - condition: |
-      {"node": "no0", "x.message": "new block saved", "x.height": {"$gt": 3}}
+      {"node": "no2", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
+    registers:
+      - assign: .matched.no2.joining_to_consensus
 
-  # check no2 is still in syncing state
   - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client '{"_hint":"node-info-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" | \
-        jq -e -c 'select(.consensus.state == "SYNCING")'
+      {"_id": {"$gt": "{{ .matched.no2.joining_to_consensus._id }}" }, "node": "no2", "x.message": "new block saved"}
+    registers:
+      - assign: .matched.no2.new_block_saved
+
+  - condition: |
+      {"x.height": {"$gt": {{ .matched.no2.new_block_saved.x.height }} }, "x.message": "new block saved"}
     range:
-      - node: [no2]
-
-  - condition: |
-      {"x.message": "ballot voted", "x.ballot.sign_fact.fact.point.height": { "$gte": 6 }, "x.ballot.sign_fact.fact.point.stage": "INIT", "x.ballot.sign_fact.sign.node": "{{ .nodes.no2.address }}" }
-    range:
-      - node: [no0, no1]
-
-  - condition: |
-      {"x.message": "ballot voted", "x.ballot.sign_fact.fact.point.height": { "$gte": 6 }, "x.ballot.sign_fact.fact.point.stage": "ACCEPT", "x.ballot.sign_fact.sign.node": "{{ .nodes.no2.address }}" }
-    range:
-      - node: [no0, no1]
-
-  - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client '{"_hint":"node-info-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" | \
-        jq -e -c 'select(.consensus.state == "SYNCING")'
-    range:
-      - node: [no2]
+      - node: [no0, no1, no2]

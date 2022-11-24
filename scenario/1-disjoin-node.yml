@@ -118,7 +118,7 @@ expects:
   - condition: |
       {"_id": {"$gt": "{{ .matched.last_checked._id }}"}, "node": "no1", "x.message": "state switched", "x.next_state.next": "SYNCING"}
     registers:
-      - assign: .matched.no1.enter_consensus
+      - assign: .matched.no1.enter_syncing
     actions:
       - type: "host-command"
         args:
@@ -128,8 +128,8 @@ expects:
           - node: [no0]
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no1.enter_consensus._id }}"}, "node": "no0", "x.message": "new block saved"}
+      {"_id": {"$gt": "{{ .matched.no1.enter_syncing._id }}"}, "node": "no0", "x.message": "new block saved"}
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no1.enter_consensus._id }}"}, "node": "no1", "x.message": "new block merged"}
+      {"_id": {"$gt": "{{ .matched.no1.enter_syncing._id }}"}, "node": "no1", "x.message": "new block merged"}
 
 

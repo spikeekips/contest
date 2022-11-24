@@ -117,21 +117,17 @@ expects:
 
   - condition: |
       {"node": "no1", "x.message": "state switched", "x.current_state": "BOOTING", "x.next_state.next": "SYNCING"}
-    registers:
-      - assign: .matched.no1.stopped_to_syncing
 
   - condition: |
       {"node": "no2", "x.message": "state switched", "x.current_state": "BOOTING", "x.next_state.next": "SYNCING"}
-    registers:
-      - assign: .matched.no2.stopped_to_syncing
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no1.stopped_to_syncing._id }}" }, "node": "no1", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
+      {"node": "no1", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
     registers:
       - assign: .matched.no1.joining_to_consensus
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no2.stopped_to_syncing._id }}" }, "node": "no2", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
+      {"node": "no2", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
     registers:
       - assign: .matched.no2.joining_to_consensus
 
