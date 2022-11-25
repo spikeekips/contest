@@ -21,7 +21,7 @@ type InternalLogEntry struct {
 }
 
 func NewInternalLogEntry(msg string, err error) InternalLogEntry {
-	return InternalLogEntry{t: localtime.UTCNow(), msg: msg, err: err}
+	return InternalLogEntry{t: localtime.Now().UTC(), msg: msg, err: err}
 }
 
 func (e InternalLogEntry) X() {}
@@ -67,7 +67,7 @@ func NewNodeLogEntryWithInterface(node string, stderr bool, i interface{}) (entr
 	}
 
 	return NodeLogEntry{
-		t:      localtime.UTCNow(),
+		t:      localtime.Now().UTC(),
 		node:   node,
 		x:      x,
 		stderr: stderr,
@@ -95,7 +95,7 @@ func NewNodeLogEntry(node string, stderr bool, b []byte) (entry NodeLogEntry, _ 
 	}
 
 	return NodeLogEntry{
-		t:      localtime.UTCNow(),
+		t:      localtime.Now().UTC(),
 		node:   node,
 		x:      x,
 		stderr: stderr,
