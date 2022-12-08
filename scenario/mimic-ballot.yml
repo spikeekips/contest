@@ -155,12 +155,12 @@ expects:
       - node: [no2]
 
   - condition: |
-      {"x.message": "ballot voted", "x.ballot.sign_fact.fact.point.height": { "$gte": 6 }, "x.ballot.sign_fact.fact.point.stage": "INIT", "x.ballot.sign_fact.sign.node": "{{ .nodes.no2.address }}" }
+      {"x.message": "ballot voted", "x.sign_fact.fact.point.height": { "$gte": 6 }, "x.sign_fact.fact.point.stage": "INIT", "x.sign_fact.sign.node": "{{ .nodes.no2.address }}" }
     range:
       - node: [no0, no1]
 
   - condition: |
-      {"x.message": "ballot voted", "x.ballot.sign_fact.fact.point.height": { "$gte": 6 }, "x.ballot.sign_fact.fact.point.stage": "ACCEPT", "x.ballot.sign_fact.sign.node": "{{ .nodes.no2.address }}" }
+      {"x.message": "ballot voted", "x.sign_fact.fact.point.height": { "$gte": 6 }, "x.sign_fact.fact.point.stage": "ACCEPT", "x.sign_fact.sign.node": "{{ .nodes.no2.address }}" }
     range:
       - node: [no0, no1]
 

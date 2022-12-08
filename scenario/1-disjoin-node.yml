@@ -131,5 +131,3 @@ expects:
       {"_id": {"$gt": "{{ .matched.no1.enter_syncing._id }}"}, "node": "no0", "x.message": "new block saved"}
   - condition: |
       {"_id": {"$gt": "{{ .matched.no1.enter_syncing._id }}"}, "node": "no1", "x.message": "new block merged"}
-
-

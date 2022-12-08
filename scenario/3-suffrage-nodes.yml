@@ -124,22 +124,12 @@ expects:
       - assign: .matched.no2.stopped_to_syncing
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no1.stopped_to_syncing._id }}" }, "node": "no1", "x.message": "state switched", "x.current_state": "SYNCING", "x.next_state.next": "JOINING"}
-    registers:
-      - assign: .matched.no1.syncing_to_joining
-
-  - condition: |
-      {"_id": {"$gt": "{{ .matched.no2.stopped_to_syncing._id }}" }, "node": "no2", "x.message": "state switched", "x.current_state": "SYNCING", "x.next_state.next": "JOINING"}
-    registers:
-      - assign: .matched.no2.syncing_to_joining
-
-  - condition: |
-      {"_id": {"$gt": "{{ .matched.no1.syncing_to_joining._id }}" }, "node": "no1", "x.message": "state switched", "x.current_state": "JOINING", "x.next_state.next": "CONSENSUS"}
+      {"_id": {"$gt": "{{ .matched.no1.stopped_to_syncing._id }}" }, "node": "no1", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
     registers:
       - assign: .matched.no1.joining_to_consensus
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no2.syncing_to_joining._id }}" }, "node": "no2", "x.message": "state switched", "x.current_state": "JOINING", "x.next_state.next": "CONSENSUS"}
+      {"_id": {"$gt": "{{ .matched.no2.stopped_to_syncing._id }}" }, "node": "no2", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
     registers:
       - assign: .matched.no2.joining_to_consensus
 

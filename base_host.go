@@ -24,11 +24,11 @@ var defaultContainerStopTimeout = time.Second
 
 type baseHost struct {
 	*logging.Logging
-	containers  *util.LockedMap
+	containers  *util.SingleLockedMap[string, string]
 	addr        *url.URL
 	files       map[string]string
 	client      *dockerClient.Client
-	ports       *util.LockedMap
+	ports       *util.SingleLockedMap[string, string]
 	user        string
 	base        string
 	publishhost string
@@ -43,8 +43,8 @@ func newBaseHost(base string, addr *url.URL, client *dockerClient.Client) (*base
 		base:       filepath.Join(base, util.ULID().String()),
 		addr:       addr,
 		client:     client,
-		containers: util.NewLockedMap(),
-		ports:      util.NewLockedMap(),
+		containers: util.NewSingleLockedMap("", ""),
+		ports:      util.NewSingleLockedMap("", ""),
 		files:      map[string]string{},
 	}
 
@@ -156,12 +156,10 @@ func (h *baseHost) Client() *dockerClient.Client {
 }
 
 func (h *baseHost) ExistsContainer(ctx context.Context, name string) (cid, info string, found bool, _ error) {
-	i, found := h.containers.Value(name)
+	cid, found = h.containers.Value(name)
 	if !found {
 		return cid, info, false, nil
 	}
-
-	cid = i.(string) //nolint:forcetypeassert //...
 
 	l, err := h.client.ContainerList(ctx, dockerTypes.ContainerListOptions{All: true})
 	if err != nil {
@@ -194,14 +192,12 @@ func (h *baseHost) CreateContainer(
 	networkingConfig *network.NetworkingConfig,
 	name string,
 ) error {
-	_, err := h.containers.Set(name, func(found bool, i interface{}) (interface{}, error) {
+	_, err := h.containers.Set(name, func(i string, found bool) (string, error) {
 		if found {
 			return i, nil
 		}
 
-		cid, err := h.createContainer(ctx, config, hostConfig, networkingConfig, name)
-
-		return cid, err
+		return h.createContainer(ctx, config, hostConfig, networkingConfig, name)
 	})
 
 	return err
@@ -293,12 +289,8 @@ func (h *baseHost) StopContainer(ctx context.Context, name string, timeout *time
 func (h *baseHost) RemoveContainer(ctx context.Context, name string, options dockerTypes.ContainerRemoveOptions) error {
 	e := util.StringErrorFunc("failed to remove container")
 
-	if _, err := h.containers.Remove(name, func(i interface{}) error {
-		if i == nil {
-			return nil
-		}
-
-		if err := h.client.ContainerRemove(ctx, i.(string), options); err != nil { //nolint:forcetypeassert //...
+	if _, err := h.containers.Remove(name, func(i string) error {
+		if err := h.client.ContainerRemove(ctx, i, options); err != nil {
 			return errors.WithStack(err)
 		}
 
@@ -335,7 +327,7 @@ func (h *baseHost) findContainer(ctx context.Context, name string) (string, erro
 	case !found:
 		return "", util.ErrNotFound.Errorf("container not found")
 	default:
-		return i.(string), nil //nolint:forcetypeassert //...
+		return i, nil
 	}
 }
 
@@ -343,14 +335,14 @@ func (h *baseHost) freePort(
 	id, n string,
 	f func(n string) (port string, _ error),
 ) (string, error) {
-	i, _, err := h.ports.Get(id, func() (interface{}, error) {
+	i, _, err := h.ports.Get(id, func() (string, error) {
 		return f(n)
 	})
 	if err != nil {
 		return "", err
 	}
 
-	return i.(string), nil //nolint:forcetypeassert //...
+	return i, nil
 }
 
 func (h *baseHost) addFile(name string, path string) {
