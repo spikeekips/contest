@@ -58,8 +58,16 @@ designs:
             max_suffrage_size: 99
             suffrage_withdraw_lifespan: 99
 
-  number-nodes: 4
+  number_nodes: 4
   nodes:
+    no0: |
+      sync_sources:
+        - type: sync-source-node
+          address: {{ .nodes.no1.address }}
+          publickey: {{ .nodes.no1.publickey }}
+          publish: "{{ .nodes.no1.network.publish }}"
+          tls_insecure: true
+
     no1: |
       sync_sources:
         - type: sync-source-node
@@ -155,8 +163,8 @@ expects:
         range:
           - node: [no3]
 
-  - condition: |
-      {"x.height": {"$gt": {{ addInt .matched.no3.stopped.x.height 5 }} }, "node": "no0", "x.message": "new block saved"}
+  - condition: "{}"
+    initial_wait: 30s
     actions:
       - type: "run-nodes"
         args:
@@ -175,3 +183,10 @@ expects:
 
   - condition: |
       {"_id": {"$gt": "{{ .matched.no3.rejoining_to_consensus._id }}" }, "node": "no3", "x.message": "new block saved"}
+    registers:
+      - assign: .matched.no3.new_block_after_rejoined
+
+  - condition: |
+      {"x.height": { "$gt": {{ addInt .matched.no3.new_block_after_rejoined.x.height 3 }} }, "x.message": "new block saved"}
+    range:
+      - node: [no0, no1, no2, no3]

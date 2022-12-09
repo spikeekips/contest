@@ -43,7 +43,7 @@ designs:
             max_suffrage_size: 99
             suffrage_withdraw_lifespan: 99
   
-  number-nodes: 4
+  number_nodes: 4
 
 expects:
   - condition: |

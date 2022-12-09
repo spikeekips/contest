@@ -46,7 +46,7 @@ func (s Design) IsValid(b []byte) error {
 
 type NodeDesigns struct {
 	Common      string            `yaml:"common"`
-	NumberNodes *int              `yaml:"number-nodes"`
+	NumberNodes *int              `yaml:"number_nodes"`
 	Nodes       map[string]string `yaml:"nodes"`
 	Genesis     string            `yaml:"genesis"`
 }
@@ -118,11 +118,12 @@ func (s NodeDesigns) AllNodes() []string {
 }
 
 type ExpectScenario struct {
-	Condition string                `yaml:"condition"`
-	Range     []map[string][]string `yaml:"range"`
-	Actions   []ScenarioAction      `yaml:"actions"`
-	Registers []ScenarioRegister    `yaml:"registers"`
-	Interval  time.Duration         `yaml:"interval"`
+	Condition   string                `yaml:"condition"`
+	Range       []map[string][]string `yaml:"range"`
+	Actions     []ScenarioAction      `yaml:"actions"`
+	Registers   []ScenarioRegister    `yaml:"registers"`
+	Interval    time.Duration         `yaml:"interval"`
+	InitialWait time.Duration         `yaml:"initial_wait"`
 }
 
 func (s ExpectScenario) IsValid(b []byte) error {
@@ -146,6 +147,10 @@ func (s ExpectScenario) IsValid(b []byte) error {
 
 	if s.Interval < 0 {
 		return e(nil, "under zero interval")
+	}
+
+	if s.InitialWait < 0 {
+		return e(nil, "under zero initial_wait")
 	}
 
 	return nil

@@ -57,7 +57,7 @@ designs:
             max_suffrage_size: 99
             suffrage_withdraw_lifespan: 99
 
-  number-nodes: 3
+  number_nodes: 3
   nodes:
     no1: |
       sync_sources:
