@@ -3,8 +3,10 @@ package contest
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"text/template"
@@ -313,10 +315,15 @@ func (vs *Vars) baseFuncMap() template.FuncMap {
 			return value
 		},
 		"newKey": func() base.Privatekey {
-			vs.Lock()
-			defer vs.Unlock()
-
 			return base.NewMPrivatekey()
+		},
+		"addInt": func(a interface{}, b int) int64 {
+			i, err := strconv.ParseInt(fmt.Sprintf("%v", a), 10, 64)
+			if err != nil {
+				return 0
+			}
+
+			return i + int64(b)
 		},
 	}
 }
@@ -352,7 +359,7 @@ func setMapIndexStringKey(m, k, v reflect.Value) {
 func CompileTemplate(s string, vars *Vars, extra map[string]interface{}) (string, error) {
 	t, err := template.New("s").Funcs(vars.FuncMap()).Parse(s)
 	if err != nil {
-		return "", err
+		return "", errors.WithStack(err)
 	}
 
 	v := vars.Map()
@@ -362,7 +369,7 @@ func CompileTemplate(s string, vars *Vars, extra map[string]interface{}) (string
 
 	var bf bytes.Buffer
 	if err := t.Execute(&bf, v); err != nil {
-		return "", err
+		return "", errors.WithStack(err)
 	}
 
 	sc := bufio.NewScanner(bytes.NewReader(bf.Bytes()))
@@ -377,7 +384,7 @@ func CompileTemplate(s string, vars *Vars, extra map[string]interface{}) (string
 	}
 
 	if err := sc.Err(); err != nil {
-		return "", err
+		return "", errors.WithStack(err)
 	}
 
 	return bf.String(), nil

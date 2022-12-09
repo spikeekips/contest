@@ -125,11 +125,21 @@ func (w *WatchLogs) newactive() (newactive ExpectScenario, queires []ConditionQu
 
 	active, err := selected.Compile(w.vars)
 	if err != nil {
+		w.Log().Error().
+			Err(err).
+			Interface("selected", selected).
+			Msg("failed to compile expect")
+
 		return active, nil, err
 	}
 
 	queries, err := w.compileConditionQueries(active)
 	if err != nil {
+		w.Log().Error().
+			Err(err).
+			Interface("selected", selected).
+			Msg("failed to compile query")
+
 		return active, nil, err
 	}
 
