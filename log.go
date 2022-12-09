@@ -76,11 +76,18 @@ func (w *WatchLogs) start(ctx context.Context, savelogch chan LogEntry) error {
 
 	w.Log().Debug().Stringer("query", queries[0]).Msg("querying")
 
-	wait := w.checkInterval
+	interval := w.checkInterval
+	initialWait := active.InitialWait
 
 end:
 	for {
 		var updated bool
+
+		if initialWait > 0 {
+			w.Log().Debug().Dur("initial_wait", initialWait).Msg("initial wait")
+
+			<-time.After(initialWait)
+		}
 
 		switch left, ok, err := w.evaluate(ctx, active, queries); {
 		case err != nil:
@@ -95,9 +102,10 @@ end:
 			}
 
 			if active.Interval > 1 {
-				wait = active.Interval
+				interval = active.Interval
 			}
 
+			initialWait = active.InitialWait
 			updated = true
 		default:
 			queries = left
@@ -105,13 +113,13 @@ end:
 		}
 
 		if updated {
-			w.Log().Debug().Dur("interval", wait).Stringer("query", queries[0]).Msg("querying")
+			w.Log().Debug().Dur("interval", interval).Stringer("query", queries[0]).Msg("querying")
 		}
 
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(wait):
+		case <-time.After(interval):
 		}
 	}
 
