@@ -351,14 +351,32 @@ func (cmd *runCommand) prepareScenario() error {
 			return e(err, "failed to compile common design for %s", alias)
 		}
 
+		designs[alias] = strings.TrimSpace(bc) + "\n"
+
+		vars.Rename(".self", ".nodes."+alias)
+	}
+
+	for i := range nodes {
+		alias := nodes[i]
+
+		host, err := cmd.hosts.NewContainer(containerName(alias))
+		if err != nil {
+			return e(err, "")
+		}
+
+		extra := map[string]interface{}{
+			"self": map[string]interface{}{
+				"alias": alias,
+				"host":  host,
+			},
+		}
+
 		bn, err := contest.CompileTemplate(cmd.design.NodeDesigns.Nodes[alias], vars, extra)
 		if err != nil {
 			return e(err, "failed to compile node design for %s", alias)
 		}
 
-		designs[alias] = strings.TrimSpace(bc+"\n"+bn) + "\n"
-
-		vars.Rename(".self", ".nodes."+alias)
+		designs[alias] += strings.TrimSpace(bn) + "\n"
 
 		log.Debug().Str("node", alias).Interface("design", designs[alias]).Msg("node design generated")
 	}

@@ -1,4 +1,4 @@
-# 3 nodes can do consensus
+# 4 nodes can do consensus
 # - 4 nodes: no0, no1, no2, no3
 # - all nodes are in suffrage from genesis
 # - threshold is 67
