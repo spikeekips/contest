@@ -6,7 +6,7 @@
 # - all nodes start
 # - all nodes will be in consensus
 # - no3 stops
-# - after at least 5 blocks, no3 tries to join
+# - no3 tries to join
 # - no3 will be in consensus
 
 ---
