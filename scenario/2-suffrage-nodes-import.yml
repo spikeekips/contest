@@ -109,17 +109,12 @@ expects:
       - assign: .matched.no1.stopped_to_syncing
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no1.stopped_to_syncing._id }}" }, "node": "no1", "x.message": "state switched", "x.current_state": "SYNCING", "x.next_state.next": "JOINING"}
+      {"_id": {"$gt": "{{ .matched.no1.stopped_to_syncing._id }}" }, "node": "no1", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
     registers:
-      - assign: .matched.no1.syncing_to_joining
+      - assign: .matched.no1.to_consensus
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no1.syncing_to_joining._id }}" }, "node": "no1", "x.message": "state switched", "x.current_state": "JOINING", "x.next_state.next": "CONSENSUS"}
-    registers:
-      - assign: .matched.no1.joining_to_consensus
-
-  - condition: |
-      {"_id": {"$gt": "{{ .matched.no1.joining_to_consensus._id }}" }, "node": "no1", "x.message": "new block saved"}
+      {"_id": {"$gt": "{{ .matched.no1.to_consensus._id }}" }, "node": "no1", "x.message": "new block saved"}
     actions:
       - type: "stop-nodes"
         range:
