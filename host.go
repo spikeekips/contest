@@ -11,7 +11,7 @@ import (
 
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/network"
+	dockerNetwork "github.com/docker/docker/api/types/network"
 	dockerClient "github.com/docker/docker/client"
 )
 
@@ -31,7 +31,7 @@ var supportedArchsStrings = map[elf.Machine]string{
 	elf.EM_S390:    "linux/s390x",
 }
 
-type Host interface {
+type Host interface { //nolint:interfacebloat //...
 	Arch() elf.Machine
 	User() string
 	Address() string
@@ -51,13 +51,13 @@ type Host interface {
 		_ context.Context,
 		_ *container.Config,
 		_ *container.HostConfig,
-		_ *network.NetworkingConfig,
+		_ *dockerNetwork.NetworkingConfig,
 		containerName string,
 	) error
 	StartContainer(
 		_ context.Context,
 		_ *container.HostConfig,
-		_ *network.NetworkingConfig,
+		_ *dockerNetwork.NetworkingConfig,
 		containerName string,
 		whenExit func(container.ContainerWaitOKBody, error),
 	) error

@@ -58,16 +58,16 @@ func NewMongodbFromURI(ctx context.Context, uri string) (*Mongodb, error) {
 func (db *Mongodb) connect(ctx context.Context, cs connstring.ConnString) error {
 	clientOpts := options.Client().ApplyURI(cs.String())
 	if err := clientOpts.Validate(); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	client, err := mongo.Connect(ctx, clientOpts)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	if err := client.Ping(ctx, readpref.Primary()); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	db.client = client
@@ -77,7 +77,7 @@ func (db *Mongodb) connect(ctx context.Context, cs connstring.ConnString) error 
 }
 
 func (db *Mongodb) Close(ctx context.Context) error {
-	return db.client.Disconnect(ctx)
+	return errors.WithStack(db.client.Disconnect(ctx))
 }
 
 func (db *Mongodb) InsertLogEntries(ctx context.Context, entries []LogEntry) error {
@@ -92,17 +92,16 @@ func (db *Mongodb) InsertLogEntries(ctx context.Context, entries []LogEntry) err
 
 	opts := options.BulkWrite().SetOrdered(true)
 	if _, err := db.db.Collection(mongodbColLogEntry).BulkWrite(ctx, models, opts); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	return nil
 }
 
-func (db *Mongodb) Find(ctx context.Context, query bson.M) (map[string]interface{}, bool, error) {
+func (db *Mongodb) Find(ctx context.Context, query bson.M) (record map[string]interface{}, found bool, _ error) {
 	option := options.FindOne()
 	option = option.SetSort(bson.D{{Key: "_id", Value: -1}})
 
-	var record map[string]interface{}
 	if r := db.db.Collection(mongodbColLogEntry).FindOne(ctx, query, option); r.Err() != nil {
 		if errors.Is(r.Err(), mongo.ErrNoDocuments) {
 			return nil, false, nil
@@ -110,7 +109,7 @@ func (db *Mongodb) Find(ctx context.Context, query bson.M) (map[string]interface
 
 		return nil, false, r.Err()
 	} else if err := r.Decode(&record); err != nil {
-		return nil, true, err
+		return nil, true, errors.WithStack(err)
 	} else {
 		return record, true, nil
 	}
@@ -121,15 +120,16 @@ func (db *Mongodb) createIndices(ctx context.Context, col string, models []mongo
 
 	cursor, err := iv.List(ctx)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	var results []bson.M
 	if err = cursor.All(ctx, &results); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
-	var existings []string //nolint:prealloc
+	var existings []string //nolint:prealloc //...
+
 	for _, r := range results {
 		name := r["name"].(string) //nolint:forcetypeassert //...
 		if !strings.HasPrefix(name, prefix) {
@@ -142,7 +142,7 @@ func (db *Mongodb) createIndices(ctx context.Context, col string, models []mongo
 	if len(existings) > 0 {
 		for _, name := range existings {
 			if _, err := iv.DropOne(ctx, name); err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 		}
 	}
@@ -152,7 +152,7 @@ func (db *Mongodb) createIndices(ctx context.Context, col string, models []mongo
 	}
 
 	if _, err := iv.CreateMany(ctx, models); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	return nil

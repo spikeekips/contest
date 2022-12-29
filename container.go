@@ -24,7 +24,7 @@ func ExistsImage(client *dockerClient.Client, image string) (bool, error) {
 		},
 	)
 	if err != nil {
-		return false, err
+		return false, errors.WithStack(err)
 	}
 
 	return len(i) > 0, nil

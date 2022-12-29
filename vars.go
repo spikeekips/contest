@@ -36,12 +36,14 @@ type Vars struct {
 }
 
 func NewVars(m map[string]interface{}) *Vars {
-	if m == nil {
-		m = map[string]interface{}{}
+	i := m
+
+	if i == nil {
+		i = map[string]interface{}{}
 	}
 
 	vs := &Vars{
-		m:       m,
+		m:       i,
 		funcMap: template.FuncMap{},
 	}
 
@@ -76,9 +78,9 @@ func (vs *Vars) FuncMap() template.FuncMap {
 		m[k] = vs.funcMap[k]
 	}
 
-	base := vs.baseFuncMap()
-	for k := range base {
-		m[k] = base[k]
+	b := vs.baseFuncMap()
+	for k := range b {
+		m[k] = b[k]
 	}
 
 	return m
@@ -136,42 +138,8 @@ func (vs *Vars) Rename(keys, newkeys string) {
 	}
 }
 
-func SanitizeVarsMap(m interface{}) interface{} {
-	if m == nil {
-		return m
-	}
-
-	v := reflect.ValueOf(m)
-	switch v.Kind() {
-	case reflect.Map:
-		n := reflect.MakeMapWithSize(
-			reflect.MapOf(reflect.TypeOf((*string)(nil)).Elem(), reflect.TypeOf((*interface{})(nil)).Elem()),
-			0,
-		)
-
-		vr := v.MapRange()
-		for vr.Next() {
-			n.SetMapIndex(
-				reflect.ValueOf(NormalizeVarsKey(vr.Key().Interface().(string))), //nolint:forcetypeassert //...
-				reflect.ValueOf(SanitizeVarsMap(vr.Value().Interface())),
-			)
-		}
-
-		v = n
-	case reflect.Array, reflect.Slice:
-		n := reflect.MakeSlice(reflect.SliceOf(reflect.TypeOf((*interface{})(nil)).Elem()), 0, v.Len())
-
-		for i := 0; i < v.Len(); i++ {
-			n = reflect.Append(n, reflect.ValueOf(SanitizeVarsMap(v.Index(i).Interface())))
-		}
-		v = n
-	}
-
-	return v.Interface()
-}
-
 func NormalizeVarsKey(s string) string {
-	s = strings.TrimSpace(s)
+	k := strings.TrimSpace(s)
 
 	for _, f := range []func(i string) string{
 		func(i string) string { // NOTE replace hyphen and underscore
@@ -196,10 +164,10 @@ func NormalizeVarsKey(s string) string {
 			return strings.ReplaceAll(i, " ", "")
 		},
 	} {
-		s = f(s)
+		k = f(k)
 	}
 
-	return s
+	return k
 }
 
 func getVar(v interface{}, keys string) (interface{}, bool) {
@@ -329,25 +297,26 @@ func (vs *Vars) baseFuncMap() template.FuncMap {
 }
 
 func copyValue(v reflect.Value) reflect.Value {
-	v = reflect.ValueOf(v.Interface())
-	switch v.Kind() {
+	j := reflect.ValueOf(v.Interface())
+	switch j.Kind() {
 	case reflect.Map:
 		n := reflect.ValueOf(map[string]interface{}{})
-		vr := v.MapRange()
+
+		vr := j.MapRange()
 		for vr.Next() {
 			setMapIndexStringKey(n, vr.Key(), copyValue(vr.Value()))
 		}
 
 		return n
 	case reflect.Slice:
-		n := reflect.MakeSlice(reflect.SliceOf(reflect.TypeOf(v.Interface()).Elem()), 0, v.Len())
-		for i := 0; i < v.Len(); i++ {
-			n = reflect.Append(n, copyValue(v.Index(i)))
+		n := reflect.MakeSlice(reflect.SliceOf(reflect.TypeOf(j.Interface()).Elem()), 0, j.Len())
+		for i := 0; i < j.Len(); i++ {
+			n = reflect.Append(n, copyValue(j.Index(i)))
 		}
 
 		return n
 	default:
-		return v
+		return j
 	}
 }
 

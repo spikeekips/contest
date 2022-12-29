@@ -227,8 +227,8 @@ func (h *baseHost) createContainer(
 
 func (h *baseHost) StartContainer(
 	ctx context.Context,
-	hostConfig *container.HostConfig,
-	networkingConfig *network.NetworkingConfig,
+	_ *container.HostConfig,
+	_ *network.NetworkingConfig,
 	name string,
 	whenExit func(container.ContainerWaitOKBody, error),
 ) error {
@@ -275,11 +275,13 @@ func (h *baseHost) StopContainer(ctx context.Context, name string, timeout *time
 		return e(err, "")
 	}
 
-	if timeout == nil {
-		timeout = &defaultContainerStopTimeout
+	ntimeout := timeout
+
+	if ntimeout == nil {
+		ntimeout = &defaultContainerStopTimeout
 	}
 
-	if err := h.client.ContainerStop(ctx, cid, timeout); err != nil {
+	if err := h.client.ContainerStop(ctx, cid, ntimeout); err != nil {
 		return e(err, "")
 	}
 
@@ -322,7 +324,7 @@ func (h *baseHost) ContainerLogs(
 	return r, nil
 }
 
-func (h *baseHost) findContainer(ctx context.Context, name string) (string, error) {
+func (h *baseHost) findContainer(_ context.Context, name string) (string, error) {
 	switch i, found := h.containers.Value(name); {
 	case !found:
 		return "", util.ErrNotFound.Errorf("container not found")

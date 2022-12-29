@@ -16,30 +16,32 @@ type LogEntry interface {
 
 type InternalLogEntry struct {
 	t   time.Time
-	err error  `bson:"error"`
-	msg string `bson:"msg"`
+	err error
+	msg string
 }
 
 func NewInternalLogEntry(msg string, err error) InternalLogEntry {
 	return InternalLogEntry{t: localtime.Now().UTC(), msg: msg, err: err}
 }
 
-func (e InternalLogEntry) X() {}
+func (InternalLogEntry) X() {}
 
 type InternalLogEntryBSONMarshaler struct {
 	T   time.Time `bson:"t"`
-	Err error     `bson:"error"`
-	ID  string    `bson:"_id"`
+	Err error     `bson:"error"` //nolint:tagliatelle //...
+	ID  string    `bson:"_id"`   //nolint:tagliatelle //...
 	Msg string    `bson:"msg"`
 }
 
 func (e InternalLogEntry) MarshalBSON() ([]byte, error) {
-	return bson.Marshal(InternalLogEntryBSONMarshaler{
+	b, err := bson.Marshal(InternalLogEntryBSONMarshaler{
 		ID:  util.ULID().String(),
 		T:   e.t,
 		Msg: e.msg,
 		Err: e.err,
 	})
+
+	return b, errors.WithStack(err)
 }
 
 type NodeLogEntry struct {
@@ -102,10 +104,10 @@ func NewNodeLogEntry(node string, stderr bool, b []byte) (entry NodeLogEntry, _ 
 	}, nil
 }
 
-func (e NodeLogEntry) X() {}
+func (NodeLogEntry) X() {}
 
 type NodeLogEntryBSONMarshaler struct {
-	ID     string    `bson:"_id"`
+	ID     string    `bson:"_id"` //nolint:tagliatelle //...
 	T      time.Time `bson:"t"`
 	Node   string    `bson:"node"`
 	X      bson.Raw  `bson:"x"`
@@ -113,11 +115,13 @@ type NodeLogEntryBSONMarshaler struct {
 }
 
 func (e NodeLogEntry) MarshalBSON() ([]byte, error) {
-	return bson.Marshal(NodeLogEntryBSONMarshaler{
+	b, err := bson.Marshal(NodeLogEntryBSONMarshaler{
 		ID:     util.ULID().String(),
 		T:      e.t,
 		Node:   e.node,
 		X:      e.x,
 		Stderr: e.stderr,
 	})
+
+	return b, errors.WithStack(err)
 }

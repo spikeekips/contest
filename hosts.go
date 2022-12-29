@@ -30,7 +30,7 @@ func NewHosts(samehost []string) *Hosts {
 func (h *Hosts) Close() error {
 	for i := range h.hosts {
 		if err := h.hosts[i].Close(); err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 

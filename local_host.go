@@ -52,7 +52,7 @@ func NewLocalHost(base string, dockerhost *url.URL) (*LocalHost, error) {
 
 	switch u, err := user.Current(); {
 	case err != nil:
-		return nil, err
+		return nil, errors.WithStack(err)
 	default:
 		h.user = u.Uid
 	}
@@ -100,13 +100,15 @@ func (h *LocalHost) Upload(s io.Reader, name, dest string, mode os.FileMode) err
 func (h *LocalHost) CollectResult(outputfile string) error {
 	e := util.StringErrorFunc("failed to collect result")
 
+	o := outputfile
+
 	// NOTE golang's gzipwriter too slow
-	ext := filepath.Ext(outputfile)
+	ext := filepath.Ext(o)
 	if ext == ".gz" {
-		outputfile = outputfile[:len(outputfile)-len(ext)]
+		o = o[:len(o)-len(ext)]
 	}
 
-	out, err := os.Create(outputfile)
+	out, err := os.Create(o)
 	if err != nil {
 		return e(err, "")
 	}
@@ -123,7 +125,7 @@ func (h *LocalHost) CollectResult(outputfile string) error {
 	addfile := func(filename string, info fs.FileInfo) error {
 		f, err := os.Open(filename)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 
 		defer func() {
@@ -132,17 +134,17 @@ func (h *LocalHost) CollectResult(outputfile string) error {
 
 		header, err := tar.FileInfoHeader(info, info.Name())
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 
 		header.Name, _ = filepath.Rel(h.base, filename)
 
 		if err = tw.WriteHeader(header); err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 
 		if _, err = io.Copy(tw, f); err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 
 		return nil
@@ -175,10 +177,10 @@ func (h *LocalHost) Mkdir(dest string, mode os.FileMode) error {
 	return nil
 }
 
-func (h *LocalHost) RunCommand(cmd string) (string, string, bool, error) {
+func (h *LocalHost) RunCommand(cmd string) (stdout string, stderr string, ok bool, err error) {
 	var e *exec.ExitError
 
-	switch stdout, stderr, err := h.runCommand(cmd); {
+	switch stdout, stderr, err = h.runCommand(cmd); {
 	case err == nil:
 		return stdout, stderr, true, nil
 	case errors.As(err, &e):
@@ -206,22 +208,26 @@ func (h *LocalHost) checkArch() error {
 	return nil
 }
 
-func (h *LocalHost) runCommand(s string) (string, string, error) {
-	var stdout, stderr bytes.Buffer
+func (h *LocalHost) runCommand(s string) (stdout string, stderr string, _ error) {
+	var bstdout, bstderr bytes.Buffer
 
 	cmd := exec.Command("bash", "-c", s)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	cmd.Stdout = &bstdout
+	cmd.Stderr = &bstderr
 
 	e := util.StringErrorFunc("failed to run command")
 
 	err := cmd.Run()
 
-	h.Log().Debug().Str("command", s).Str("stdout", stdout.String()).Str("stderr", stderr.String()).Msg("host command finished")
+	h.Log().Debug().
+		Str("command", s).
+		Str("stdout", bstdout.String()).
+		Str("stderr", bstderr.String()).
+		Msg("host command finished")
 
 	if err != nil {
-		return stdout.String(), stderr.String(), e(err, "")
+		return bstdout.String(), bstderr.String(), e(err, "")
 	}
 
-	return stdout.String(), stderr.String(), nil
+	return bstdout.String(), bstderr.String(), nil
 }

@@ -96,7 +96,7 @@ func (h *RemoteHost) Upload(s io.Reader, name, dest string, mode os.FileMode) er
 	if err := util.Retry(context.Background(), func() (bool, error) {
 		if origr != nil {
 			if _, err := origr.Seek(0, 0); err != nil {
-				return false, err
+				return false, errors.WithStack(err)
 			}
 
 			nr = origr
@@ -126,7 +126,7 @@ func (h *RemoteHost) Upload(s io.Reader, name, dest string, mode os.FileMode) er
 	return nil
 }
 
-func (h *RemoteHost) upload(s io.Reader, name, dest string) error {
+func (h *RemoteHost) upload(s io.Reader, _, dest string) error {
 	session, err := h.sshSession()
 	if err != nil {
 		return err
@@ -143,6 +143,7 @@ func (h *RemoteHost) upload(s io.Reader, name, dest string) error {
 	}
 
 	errch := make(chan error, 2)
+
 	go func() {
 		_, err := io.Copy(stdinw, s)
 		_ = stdinw.Close()
@@ -203,6 +204,7 @@ func (h *RemoteHost) Mkdir(dest string, mode os.FileMode) error {
 	if err != nil {
 		return e(err, "")
 	}
+
 	defer func() {
 		_ = st.Close()
 	}()
@@ -280,6 +282,7 @@ func (h *RemoteHost) checkBase() error {
 	if err != nil {
 		return e(err, "")
 	}
+
 	defer func() {
 		_ = st.Close()
 	}()
@@ -313,6 +316,7 @@ func (h *RemoteHost) newSSHClient() (*ssh.Client, error) {
 	if err != nil {
 		return nil, e(err, "")
 	}
+
 	agentsock := agent.NewClient(sock)
 
 	signers, err := agentsock.Signers()
@@ -330,14 +334,15 @@ func (h *RemoteHost) newSSHClient() (*ssh.Client, error) {
 	}
 
 	addr := h.Hostname() + ":22"
+
 	netconn, err := net.DialTimeout("tcp", addr, time.Second*10) //nolint:gomnd //...
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	conn, chans, reqs, err := ssh.NewClientConn(netconn, addr, config)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	h.savedsshclient = ssh.NewClient(conn, chans, reqs)
@@ -358,6 +363,7 @@ func (h *RemoteHost) sshSession() (*ssh.Session, error) {
 	defer cancel()
 
 	var session *ssh.Session
+
 	if err := util.Retry(ctx, func() (_ bool, err error) {
 		session, err = client.NewSession()
 
@@ -386,7 +392,7 @@ func (h *RemoteHost) sshSession() (*ssh.Session, error) {
 	return session, nil
 }
 
-func (h *RemoteHost) remoteFreePort(network string, portmap nat.PortMap) (string, error) {
+func (h *RemoteHost) remoteFreePort(network string, _ nat.PortMap) (string, error) {
 	e := util.StringErrorFunc("failed to get free port")
 
 	session, err := h.sshSession()
@@ -403,6 +409,7 @@ func (h *RemoteHost) remoteFreePort(network string, portmap nat.PortMap) (string
 	session.Stderr = &bufstderr
 
 	var cmd string
+
 	switch network {
 	case "udp":
 		cmd = udpFreeportCmdF
@@ -427,10 +434,10 @@ func (h *RemoteHost) remoteFreePort(network string, portmap nat.PortMap) (string
 	}
 }
 
-func (h *RemoteHost) RunCommand(cmd string) (string, string, bool, error) {
+func (h *RemoteHost) RunCommand(cmd string) (stdout string, stderr string, ok bool, err error) {
 	var e *exec.ExitError
 
-	switch stdout, stderr, err := h.runCommand(cmd); {
+	switch stdout, stderr, err = h.runCommand(cmd); {
 	case err == nil:
 		return stdout, stderr, true, nil
 	case errors.As(err, &e):
@@ -440,7 +447,7 @@ func (h *RemoteHost) RunCommand(cmd string) (string, string, bool, error) {
 	}
 }
 
-func (h *RemoteHost) runCommand(cmd string) (string, string, error) {
+func (h *RemoteHost) runCommand(cmd string) (stdout string, stderr string, _ error) {
 	session, err := h.sshSession()
 	if err != nil {
 		return "", "", err
@@ -450,18 +457,14 @@ func (h *RemoteHost) runCommand(cmd string) (string, string, error) {
 		_ = session.Close()
 	}()
 
-	var stdout, stderr bytes.Buffer
+	var bstdout, bstderr bytes.Buffer
 
-	session.Stdout = &stdout
-	session.Stderr = &stderr
+	session.Stdout = &bstdout
+	session.Stderr = &bstderr
 
 	err = session.Run(cmd)
 
-	h.Log().Debug().Str("stdout", stdout.String()).Str("stderr", stderr.String()).Msg("host command finished")
+	h.Log().Debug().Str("stdout", bstdout.String()).Str("stderr", bstderr.String()).Msg("host command finished")
 
-	if err != nil {
-		return stdout.String(), stderr.String(), err
-	}
-
-	return stdout.String(), stderr.String(), nil
+	return bstdout.String(), bstderr.String(), err
 }

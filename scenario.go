@@ -11,17 +11,17 @@ import (
 )
 
 type Design struct {
-	Vars                            map[string]interface{} `yaml:"vars"`
-	NodeDesigns                     NodeDesigns            `yaml:"designs"`
-	Expects                         []ExpectScenario       `yaml:"expects"`
-	Nodes                           NodesDesign            `yaml:"nodes"`
-	IgnoreWhenAbnormalContainerExit bool                   `yaml:"ignore_abnormal_container_exit"`
+	Vars                        map[string]interface{} `yaml:"vars"`
+	Designs                     NodeDesigns            `yaml:"designs"`
+	Expects                     []ExpectScenario       `yaml:"expects"`
+	Nodes                       NodesDesign            `yaml:"nodes"`
+	IgnoreAbnormalContainerExit bool                   `yaml:"ignore_abnormal_container_exit"`
 }
 
 func (s Design) IsValid(b []byte) error {
 	e := util.StringErrorFunc("invalid Design")
 
-	if err := s.NodeDesigns.IsValid(b); err != nil {
+	if err := s.Designs.IsValid(b); err != nil {
 		return e(err, "")
 	}
 
@@ -51,7 +51,7 @@ type NodeDesigns struct {
 	Genesis     string            `yaml:"genesis"`
 }
 
-func (s NodeDesigns) IsValid(b []byte) error {
+func (s NodeDesigns) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid NodeDesigns")
 
 	if (s.NumberNodes == nil || *s.NumberNodes < 1) && len(s.Nodes) < 1 {
@@ -81,6 +81,7 @@ func (s NodeDesigns) AllNodes() []string {
 		aliases := make([]string, len(s.Nodes))
 
 		var i int
+
 		for alias := range s.Nodes {
 			aliases[i] = alias
 			i++
@@ -163,14 +164,12 @@ func (s ExpectScenario) RangeValues() []map[string]interface{} {
 
 	var l int
 
-	for i := range s.Range {
-		for k := range s.Range[i] {
-			l = len(s.Range[i][k])
+	if len(s.Range) > 0 {
+		for i := range s.Range[0] {
+			l = len(s.Range[0][i])
 
 			break
 		}
-
-		break //lint:ignore SA4004 //...
 	}
 
 	ms := make([]map[string]interface{}, l)
@@ -215,6 +214,7 @@ func (s ExpectScenario) Compile(vars *Vars) (newexpect ExpectScenario, err error
 
 			for k := range r {
 				v := make([]string, len(r[k]))
+
 				for j := range r[k] {
 					c, err := CompileTemplate(r[k][j], vars, nil)
 					if err != nil {
@@ -243,8 +243,7 @@ type ScenarioAction struct {
 func (s ScenarioAction) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid ScenarioAction")
 
-	switch {
-	case len(s.Type) < 1:
+	if len(s.Type) < 1 {
 		return e(nil, "empty type")
 	}
 
@@ -258,14 +257,12 @@ func (s ScenarioAction) RangeValues() []map[string]interface{} {
 
 	var l int
 
-	for i := range s.Range {
-		for k := range s.Range[i] {
-			l = len(s.Range[i][k])
+	if len(s.Range) > 0 {
+		for i := range s.Range[0] {
+			l = len(s.Range[0][i])
 
 			break
 		}
-
-		break //lint:ignore SA4004 //...
 	}
 
 	ms := make([]map[string]interface{}, l)
@@ -340,12 +337,12 @@ var reNodeAlias = regexp.MustCompile(`^no\d+$`)
 func isValidNodeAliasFormat(s string) error {
 	e := util.StringErrorFunc("invalid node alias")
 
-	s = strings.TrimSpace(s)
+	i := strings.TrimSpace(s)
 
 	switch {
-	case len(s) < 1:
+	case len(i) < 1:
 		return e(nil, "empty alias")
-	case !reNodeAlias.MatchString(s):
+	case !reNodeAlias.MatchString(i):
 		return e(nil, "wrong format")
 	default:
 		return nil

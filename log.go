@@ -128,7 +128,7 @@ end:
 	return nil
 }
 
-func (w *WatchLogs) newactive() (newactive ExpectScenario, queires []ConditionQuery, _ error) {
+func (w *WatchLogs) newactive() (newactive ExpectScenario, queries []ConditionQuery, _ error) {
 	selected, left := w.actives[0], w.actives[1:]
 
 	active, err := selected.Compile(w.vars)
@@ -141,7 +141,7 @@ func (w *WatchLogs) newactive() (newactive ExpectScenario, queires []ConditionQu
 		return active, nil, err
 	}
 
-	queries, err := w.compileConditionQueries(active)
+	qs, err := w.compileConditionQueries(active)
 	if err != nil {
 		w.Log().Error().
 			Err(err).
@@ -154,10 +154,10 @@ func (w *WatchLogs) newactive() (newactive ExpectScenario, queires []ConditionQu
 	w.Log().Debug().
 		Interface("expect", active).
 		Func(func(e *zerolog.Event) {
-			s := make([]fmt.Stringer, len(queries))
+			s := make([]fmt.Stringer, len(qs))
 
 			for i := range s {
-				s[i] = queries[i]
+				s[i] = qs[i]
 			}
 
 			e.Stringers("queries", s)
@@ -166,7 +166,7 @@ func (w *WatchLogs) newactive() (newactive ExpectScenario, queires []ConditionQu
 
 	w.actives = left
 
-	return active, queries, nil
+	return active, qs, nil
 }
 
 func (w *WatchLogs) compileConditionQueries(expect ExpectScenario) (queries []ConditionQuery, _ error) {
@@ -182,6 +182,7 @@ func (w *WatchLogs) compileConditionQueries(expect ExpectScenario) (queries []Co
 	rv := expect.RangeValues()
 
 	queries = make([]ConditionQuery, len(rv))
+
 	for i := range rv {
 		vars := w.vars.Clone(nil)
 		vars.Set(".self.range", rv[i])
@@ -270,16 +271,19 @@ func (w *WatchLogs) evaluate(
 		left = queries[1:]
 	}
 
-	r, found, err := query.Find(ctx)
-	switch {
+	var r interface{}
+
+	switch i, found, err := query.Find(ctx); {
 	case err != nil:
-		return left, false, err
+		return left, false, errors.WithStack(err)
 	case !found:
 		return left, false, nil
 	default:
 		ok = found
 
-		l.Debug().Interface("out", r).Msg("matched")
+		l.Debug().Interface("out", i).Msg("matched")
+
+		r = i
 	}
 
 	for i := range current.Registers {
@@ -386,7 +390,7 @@ func (c MongodbConditionQuery) String() string {
 	return string(b)
 }
 
-func (c MongodbConditionQuery) Find(ctx context.Context) (interface{}, bool, error) {
+func (c MongodbConditionQuery) Find(ctx context.Context) (out interface{}, ok bool, _ error) {
 	return c.findDBFunc(ctx, c.m)
 }
 
@@ -399,7 +403,7 @@ func (c HostCommandConditionQuery) String() string {
 	return c.cmd
 }
 
-func (c HostCommandConditionQuery) Find(ctx context.Context) (interface{}, bool, error) {
+func (c HostCommandConditionQuery) Find(context.Context) (out interface{}, ok bool, _ error) {
 	stdout, _, ok, err := c.host.RunCommand(c.cmd)
 	if err != nil {
 		return nil, false, nil
