@@ -24,12 +24,12 @@ func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) erro
 	openfiles := func(fname string) (io.WriteCloser, *tail.Tail, error) {
 		f, err := os.OpenFile(fname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, errors.WithStack(err)
 		}
 
 		t, err := tail.TailFile(fname, tail.Config{Follow: true})
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, errors.WithStack(err)
 		}
 
 		return f, t, nil
@@ -53,7 +53,7 @@ func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) erro
 		Follow: true, Tail: "all",
 	})
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	go func() {
@@ -70,41 +70,41 @@ func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) erro
 		}
 	}()
 
-	savetail := func(t *tail.Tail, stderr bool) {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case l := <-t.Lines:
-				if ctx.Err() != nil {
-					break
-				}
+	go cmd.savetail(ctx, alias, outt, false)
+	go cmd.savetail(ctx, alias, errt, true)
 
-				if l.Err != nil {
-					cmd.logch <- contest.NewInternalLogEntry("tail error", l.Err)
-				}
+	return nil
+}
 
-				if len(l.Text) < 1 {
-					continue
-				}
+func (cmd *runCommand) savetail(ctx context.Context, alias string, t *tail.Tail, stderr bool) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case l := <-t.Lines:
+			if ctx.Err() != nil {
+				break
+			}
 
-				text := l.Text
-				if e := log.Trace(); e.Enabled() {
-					e.Str("node", alias).Str("text", text).Bool("stderr", stderr).Msg("new log text")
-				}
+			if l.Err != nil {
+				cmd.logch <- contest.NewInternalLogEntry("tail error", l.Err)
+			}
 
-				switch entry, err := contest.NewNodeLogEntry(alias, stderr, []byte(text)); {
-				case err != nil:
-					log.Error().Err(err).Str("node", alias).Str("text", text).Msg("wrong node log")
-				default:
-					cmd.logch <- entry
-				}
+			if len(l.Text) < 1 {
+				continue
+			}
+
+			text := l.Text
+			if e := log.Trace(); e.Enabled() {
+				e.Str("node", alias).Str("text", text).Bool("stderr", stderr).Msg("new log text")
+			}
+
+			switch entry, err := contest.NewNodeLogEntry(alias, stderr, []byte(text)); {
+			case err != nil:
+				log.Error().Err(err).Str("node", alias).Str("text", text).Msg("wrong node log")
+			default:
+				cmd.logch <- entry
 			}
 		}
 	}
-
-	go savetail(outt, false)
-	go savetail(errt, true)
-
-	return nil
 }

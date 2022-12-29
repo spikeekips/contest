@@ -20,7 +20,7 @@ var (
 
 var defaultMongodbURI = "mongodb://localhost:27017/contest_" + contestID
 
-type runCommand struct {
+type runCommand struct { //nolint:govet //...
 	BaseDir      string        `arg:"" name:"base_directory" help:"base directory"`
 	Design       string        `arg:"" name:"scenario" help:"scenario file" type:"existingfile"`
 	Hosts        []HostFlag    `arg:"" name:"host" help:"docker host"`
@@ -50,9 +50,10 @@ func (cmd *runCommand) Run() error {
 	started := time.Now()
 
 	defer func() {
-		timeout := time.Second * 30
+		timeout := time.Second * 30 //nolint:gomnd //...
+
 		if cmd.Timeout > 0 {
-			d := cmd.Timeout - time.Since(started) - (time.Second * 5)
+			d := cmd.Timeout - time.Since(started) - (time.Second * 5) //nolint:gomnd //...
 			if d < 1 {
 				return
 			}
@@ -60,8 +61,8 @@ func (cmd *runCommand) Run() error {
 			timeout = d
 		}
 
-		cctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
+		cctx, ccancel := context.WithTimeout(context.Background(), timeout)
+		defer ccancel()
 
 		err := cmd.closeHosts(cctx)
 		if err != nil {

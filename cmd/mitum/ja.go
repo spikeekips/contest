@@ -3,8 +3,11 @@ package main
 import (
 	"github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/require"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
+	"gopkg.in/yaml.v2"
 )
 
 func prepareJAVM(log *logging.Logging) (*goja.Runtime, error) {
@@ -63,4 +66,43 @@ func printJALog(l func() *zerolog.Event) func(goja.FunctionCall) goja.Value {
 
 		return nil
 	}
+}
+
+func loadConfigFromDesign[T any](s string, name string, v *T) error {
+	var m map[string]interface{}
+
+	if err := yaml.Unmarshal([]byte(s), &m); err != nil {
+		return errors.WithStack(err)
+	}
+
+	i, found := m[name]
+	if !found {
+		return util.ErrNotFound.Errorf("%q not found in design", name)
+	}
+
+	if err := util.InterfaceSetValue(i, v); err != nil {
+		return util.ErrInvalid.Errorf("invalid %q design, expected %T, but %T", name, v, i)
+	}
+
+	return nil
+}
+
+func loadScript(s string, name string) (string, error) {
+	var j map[interface{}]interface{}
+
+	if err := loadConfigFromDesign(s, name, &j); err != nil {
+		return "", err
+	}
+
+	k, found := j["script"]
+	if !found {
+		return "", util.ErrNotFound.Errorf("`script` not found in %q design", name)
+	}
+
+	l, ok := k.(string)
+	if !ok {
+		return "", util.ErrInvalid.Errorf("invalid `script` type, expected string, but %T", k)
+	}
+
+	return l, nil
 }

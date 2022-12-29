@@ -45,7 +45,7 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 			func(ctx context.Context, host contest.Host, alias string, args []string) error {
 				cmd, err := contest.LoadHostCommandArgs(args)
 				if err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 
 				log.Debug().
@@ -57,7 +57,7 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 
 				switch _, _, ok, err := host.RunCommand(cmd); {
 				case err != nil:
-					return err
+					return errors.WithStack(err)
 				case !ok:
 					return errors.Errorf("exit code != 0")
 				default:

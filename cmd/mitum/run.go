@@ -71,8 +71,10 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 	_ = pps.POK(launch.PNameStorage).PostAddOK(ps.Name("check-hold"), cmd.pCheckHold)
 	_ = pps.POK(launch.PNameStates).PreAddOK(
 		ps.Name("when-new-block-saved-in-consensus-state-func"), cmd.pWhenNewBlockSavedInConsensusStateFunc)
-	_ = pps.POK(launch.PNameStates).PreAfterOK(
-		"fixed-proposer-selector", PFixedProposerSelector, launch.PNameProposerSelector)
+	_ = pps.POK(launch.PNameStates).
+		PreAfterOK(ps.Name("fixed-proposer-selector"), PFixedProposerSelector, launch.PNameProposerSelector).
+		PostBeforeOK(PNameFilterNotifyMsgFunc, PFilterNotifyMsgFunc, launch.PNamePatchMemberlist).
+		PreAfterOK(PNameCustomBallotStuckResolver, PBallotStuckResolver, launch.PNameBallotStuckResolver)
 
 	_ = pps.SetLogging(log)
 

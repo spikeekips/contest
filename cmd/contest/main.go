@@ -36,11 +36,13 @@ var kongOptions = []kong.Option{
 }
 
 func main() {
-	var cli struct {
+	//revive:disable:nested-structs
+	var cli struct { //nolint:govet //...
 		launch.LoggingFlags `embed:"" prefix:"log."`
 		Run                 runCommand `cmd:"" help:"run contest"`
 		Version             struct{}   `cmd:"" help:"version"`
 	}
+	//revive:enable:nested-structs
 
 	kctx := kong.Parse(&cli, kongOptions...)
 
@@ -59,6 +61,7 @@ func main() {
 	if err != nil {
 		kctx.FatalIfErrorf(err)
 	}
+
 	mlogging = l
 
 	log = mitumlogging.NewLogging(func(lctx zerolog.Context) zerolog.Context {

@@ -1,17 +1,13 @@
-# 4 nodes can do consensus
-# - 4 nodes: no0, no1, no2, no3
+# 3 nodes can do consensus
+# - 3 nodes: no0, no1, no2
 # - all nodes are in suffrage from genesis
-# - threshold is 67
 # - no0 does init
 # - all nodes start
 # - all nodes will be in consensus
-# - no3 stops
-# - no3 tries to join
-# - no3 will be in consensus
+# - height, 3, all nodes in ballot stuck
+# - all nodes will be in consensus
 
 ---
-ignore_abnormal_container_exit: true
-
 vars:
   .network_id: mitum contest; Sat 26 Dec 2020 05:29:13 AM KST
 
@@ -29,7 +25,6 @@ designs:
       tls_insecure: true
     storage:
       base: /data
-    ballot-stuck-resolver: dummy
 
   genesis: |
       facts:
@@ -44,9 +39,6 @@ designs:
             - _hint: node-v0.0.1
               address: {{ .nodes.no2.address }}
               publickey: {{ .nodes.no2.publickey }}
-            - _hint: node-v0.0.1
-              address: {{ .nodes.no3.address }}
-              publickey: {{ .nodes.no3.publickey }}
      
         - _hint: genesis-network-policy-fact-v0.0.1
           policy:
@@ -59,15 +51,30 @@ designs:
             max_suffrage_size: 99
             suffrage_withdraw_lifespan: 99
 
-  number_nodes: 4
+  number_nodes: 3
   nodes:
     no0: |
-      sync_sources:
-        - type: sync-source-node
-          address: {{ .nodes.no1.address }}
-          publickey: {{ .nodes.no1.publickey }}
-          publish: "{{ .nodes.no1.network.publish }}"
-          tls_insecure: true
+      filter-notify-msg-func:
+        script: |
+          function filterNotifyMsg(m) {
+            var point = m.sign_fact.fact.point
+            var node = m.sign_fact.sign.node
+
+            if (typeof point === undefined || typeof node === undefined) {
+              return true
+            }
+    
+            if (point.height != 3 || point.round != 0) {
+              return true
+            }
+
+            if (node == "no1sas" || node == "no2sas") {
+              log.debug("filtered", "m", m)
+              return false
+            }
+    
+            return true
+          }
 
     no1: |
       sync_sources:
@@ -76,6 +83,28 @@ designs:
           publickey: {{ .nodes.no0.publickey }}
           publish: "{{ .nodes.no0.network.publish }}"
           tls_insecure: true
+      filter-notify-msg-func:
+        script: |
+          function filterNotifyMsg(m) {
+            var point = m.sign_fact.fact.point
+            var node = m.sign_fact.sign.node
+
+            if (typeof point === undefined || typeof node === undefined) {
+              return true
+            }
+    
+            if (point.height != 3 || point.round != 0) {
+              return true
+            }
+
+            if (node == "no0sas" || node == "no2sas") {
+              log.debug("filtered", "m", m)
+              return false
+            }
+    
+            return true
+          }
+
 
     no2: |
       sync_sources:
@@ -84,14 +113,28 @@ designs:
           publickey: {{ .nodes.no0.publickey }}
           publish: "{{ .nodes.no0.network.publish }}"
           tls_insecure: true
+      filter-notify-msg-func:
+        script: |
+          function filterNotifyMsg(m) {
+            var point = m.sign_fact.fact.point
+            var node = m.sign_fact.sign.node
 
-    no3: |
-      sync_sources:
-        - type: sync-source-node
-          address: {{ .nodes.no0.address }}
-          publickey: {{ .nodes.no0.publickey }}
-          publish: "{{ .nodes.no0.network.publish }}"
-          tls_insecure: true
+            if (typeof point === undefined || typeof node === undefined) {
+              return true
+            }
+    
+            if (point.height != 3 || point.round != 0) {
+              return true
+            }
+
+            if (node == "no0sas" || node == "no1sas") {
+              log.debug("filtered", "m", m)
+              return false
+            }
+    
+            return true
+          }
+
 
 expects:
   - condition: |
@@ -135,59 +178,44 @@ expects:
           - --discovery
           - "{{ .nodes.no0.network.publish }}#tls_insecure"
         range:
-          - node: [no1, no2, no3]
+          - node: [no1, no2]
 
   - condition: |
-      {"x.message": "state switched", "x.current_state": "BOOTING", "x.next_state.next": "SYNCING"}
+      {"node": "no1", "x.message": "state switched", "x.current_state": "BOOTING", "x.next_state.next": "SYNCING"}
+    registers:
+      - assign: .matched.no1.stopped_to_syncing
+
+  - condition: |
+      {"node": "no2", "x.message": "state switched", "x.current_state": "BOOTING", "x.next_state.next": "SYNCING"}
+    registers:
+      - assign: .matched.no2.stopped_to_syncing
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no1.stopped_to_syncing._id }}" }, "node": "no1", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
+    registers:
+      - assign: .matched.no1.joining_to_consensus
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no2.stopped_to_syncing._id }}" }, "node": "no2", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
+    registers:
+      - assign: .matched.no2.joining_to_consensus
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no2.joining_to_consensus._id }}" }, "node": "no2", "x.message": "new block saved"}
+    registers:
+      - assign: .matched.no2.new_block_saved
+
+  - condition: |
+      {"x.height": {"$gt": {{ .matched.no2.new_block_saved.x.height }} }, "x.message": "new block saved"}
     range:
-      - node: [no1, no2, no3]
+      - node: [no0, no1, no2]
 
   - condition: |
-      {"node": "no1", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
-
-  - condition: |
-      {"node": "no3", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
-    registers:
-      - assign: .matched.no3.joining_to_consensus
-
-  - condition: |
-      {"_id": {"$gt": "{{ .matched.no3.joining_to_consensus._id }}" }, "x.message": "new block saved"}
+      {"x.module": "ballot-stuck-resolver", "x.point.stage": "INIT", "x.point.height": 3, "x.point.round": 0, "x.message":"found stuck"}
     range:
-      - node: [no0, no1, no2, no3]
+      - node: [no0, no1, no2]
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no3.joining_to_consensus._id }}" }, "node": "no3", "x.message": "new block saved"}
-    registers:
-      - assign: .matched.no3.stopped
-    actions:
-      - type: "stop-nodes"
-        range:
-          - node: [no3]
-
-  - condition: "{}"
-    initial_wait: 30s
-    actions:
-      - type: "run-nodes"
-        args:
-          - /cmd
-          - run
-          - --design=config.yml
-          - --discovery
-          - "{{ .nodes.no0.network.publish }}#tls_insecure"
-        range:
-          - node: [no3]
-
-  - condition: |
-      {"_id": {"$gt": "{{ .matched.no3.stopped._id }}" }, "node": "no3", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
-    registers:
-      - assign: .matched.no3.rejoining_to_consensus
-
-  - condition: |
-      {"_id": {"$gt": "{{ .matched.no3.rejoining_to_consensus._id }}" }, "node": "no3", "x.message": "new block saved"}
-    registers:
-      - assign: .matched.no3.new_block_after_rejoined
-
-  - condition: |
-      {"x.height": { "$gt": {{ addInt .matched.no3.new_block_after_rejoined.x.height 3 }} }, "x.message": "new block saved"}
+      {"x.height": {"$gt": 4 }, "x.message": "new block saved"}
     range:
-      - node: [no0, no1, no2, no3]
+      - node: [no0, no1, no2]

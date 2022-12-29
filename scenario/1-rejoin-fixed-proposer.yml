@@ -30,6 +30,7 @@ designs:
       tls_insecure: true
     storage:
       base: /data
+    ballot-stuck-resolver: dummy
     fixed-proposer-selector:
       script: |
         function selectProposer(point, nodes) {
@@ -50,7 +51,7 @@ designs:
             log.debug("no0sas found?", "point", point, "nodes", nodes, "found", found)
 
             if (!found) {
-              return ""
+              return "" /* if no0sas is not in nodes, default proposer will be used */
             }
 
             return "no0sas"

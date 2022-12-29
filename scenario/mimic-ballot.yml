@@ -31,6 +31,7 @@ designs:
       base: /data
     parameters:
       threshold: 60
+    ballot-stuck-resolver: dummy
 
   genesis: |
       facts:

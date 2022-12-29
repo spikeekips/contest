@@ -49,8 +49,7 @@ func (f *HostFlag) UnmarshalText(b []byte) error {
 		return e(err, "")
 	}
 
-	switch i := frags.Get("base"); {
-	case len(i) > 0:
+	if i := frags.Get("base"); len(i) > 0 {
 		f.base = i
 	}
 

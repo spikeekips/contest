@@ -11,7 +11,6 @@ import (
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
-	"gopkg.in/yaml.v2"
 )
 
 type FixedProposerSelector struct {
@@ -43,6 +42,17 @@ func PFixedProposerSelector(ctx context.Context) (context.Context, error) {
 		return ctx, err
 	}
 
+	var script string
+
+	switch i, err := loadScript(designString, "fixed-proposer-selector"); {
+	case errors.Is(err, util.ErrNotFound):
+		return ctx, nil
+	case err != nil:
+		return ctx, err
+	default:
+		script = i
+	}
+
 	mlog := logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 		return zctx.Str("module", "fixed-proposer-selector")
 	}).SetLogging(log)
@@ -52,64 +62,23 @@ func PFixedProposerSelector(ctx context.Context) (context.Context, error) {
 		return ctx, err
 	}
 
-	var caller goja.Callable
-
-	switch i, err := loadFixedProposerDesign(designString); {
-	case errors.Is(err, util.ErrNotFound):
-		return ctx, nil
-	case err != nil:
-		return ctx, err
-	default:
-		if _, err := vm.RunString(i); err != nil {
-			return ctx, errors.WithStack(err)
-		}
-
-		f, ok := goja.AssertFunction(vm.Get("selectProposer"))
-		if !ok {
-			return ctx, errors.Errorf("function, `selectProposer` not found in `fixed-proposer-selector` design")
-		}
-
-		log.Log().Debug().Str("script", i).Msg("`selectProposer` loaded from design")
-
-		caller = f
+	if _, err := vm.RunString(script); err != nil {
+		return ctx, errors.WithStack(err)
 	}
 
-	p := FixedProposerSelector{proposerSelector: proposerSelector, f: scriptProposerSelectFunc(vm, caller)}
+	caller, ok := goja.AssertFunction(vm.Get("selectProposer"))
+	if !ok {
+		return ctx, errors.Errorf("function, `selectProposer` not found in `fixed-proposer-selector` design")
+	}
+
+	log.Log().Debug().Str("script", script).Msg("`selectProposer` loaded from design")
+
+	p := FixedProposerSelector{proposerSelector: proposerSelector, f: proposerSelectFunc(vm, caller)}
 
 	return context.WithValue(ctx, launch.ProposerSelectorContextKey, p), nil
 }
 
-func loadFixedProposerDesign(s string) (string, error) {
-	var m map[string]interface{}
-
-	if err := yaml.Unmarshal([]byte(s), &m); err != nil {
-		return "", errors.WithStack(err)
-	}
-
-	i, found := m["fixed-proposer-selector"]
-	if !found {
-		return "", util.ErrNotFound.Errorf("`fixed-proposer-selector` not found in design")
-	}
-
-	j, ok := i.(map[interface{}]interface{})
-	if !ok {
-		return "", util.ErrInvalid.Errorf("invalid `fixed-proposer-selector` design, expected map, but %T", i)
-	}
-
-	k, found := j["script"]
-	if !found {
-		return "", util.ErrNotFound.Errorf("`script` not found in `fixed-proposer-selector` design")
-	}
-
-	l, ok := k.(string)
-	if !ok {
-		return "", util.ErrInvalid.Errorf("invalid `script` type, expected string, but %T", k)
-	}
-
-	return l, nil
-}
-
-func scriptProposerSelectFunc(vm *goja.Runtime, f goja.Callable) func(context.Context, base.Point, []base.Node) (base.Node, error) {
+func proposerSelectFunc(vm *goja.Runtime, f goja.Callable) func(context.Context, base.Point, []base.Node) (base.Node, error) {
 	return func(_ context.Context, point base.Point, nodes []base.Node) (base.Node, error) {
 		jpoint := map[string]interface{}{
 			"height": point.Height(),

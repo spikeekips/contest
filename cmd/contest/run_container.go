@@ -17,7 +17,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-func (cmd *runCommand) startRedisContainer(
+func (*runCommand) startRedisContainer(
 	ctx context.Context,
 	h contest.Host,
 	whenExit func(container.ContainerWaitOKBody, error),
@@ -65,17 +65,22 @@ func (cmd *runCommand) startRedisContainer(
 	return nil
 }
 
-func (cmd *runCommand) runNode(ctx context.Context, host contest.Host, alias string, args []string) error {
+func (cmd *runCommand) runNode( //revive:disable-line:cyclomatic
+	ctx context.Context, host contest.Host, alias string, args []string,
+) error {
 	e := util.StringErrorFunc("failed to run node")
 
+	nargs := args
+
 	var foundloglevel, foundlogformat, foundlogout bool
-	for i := range args {
+
+	for i := range nargs {
 		switch {
-		case strings.HasPrefix(args[i], "--log.level"):
+		case strings.HasPrefix(nargs[i], "--log.level"):
 			foundloglevel = true
-		case strings.HasPrefix(args[i], "--log.format"):
+		case strings.HasPrefix(nargs[i], "--log.format"):
 			foundlogformat = true
-		case strings.HasPrefix(args[i], "--log.out"):
+		case strings.HasPrefix(nargs[i], "--log.out"):
 			foundlogout = true
 		}
 
@@ -85,13 +90,15 @@ func (cmd *runCommand) runNode(ctx context.Context, host contest.Host, alias str
 	}
 
 	if !foundloglevel {
-		args = append(args, "--log.level", "debug")
+		nargs = append(nargs, "--log.level", "debug")
 	}
+
 	if !foundlogformat {
-		args = append(args, "--log.format", "json")
+		nargs = append(nargs, "--log.format", "json")
 	}
+
 	if !foundlogout {
-		args = append(args, "--log.out", "stdout")
+		nargs = append(nargs, "--log.out", "stdout")
 	}
 
 	name := containerName(alias)
@@ -106,7 +113,7 @@ func (cmd *runCommand) runNode(ctx context.Context, host contest.Host, alias str
 	}
 
 	config, hostconfig := cmd.nodeContainerConfigs(alias, host)
-	config.Cmd = args
+	config.Cmd = nargs
 
 	if err := host.CreateContainer(ctx, config, hostconfig, nil, name); err != nil {
 		return e(err, "")
@@ -134,10 +141,10 @@ func (cmd *runCommand) runNode(ctx context.Context, host contest.Host, alias str
 				return e.Interface("body", body).
 					Str("alias", alias).
 					Str("container", name).
-					Bool("ignore", cmd.design.IgnoreWhenAbnormalContainerExit)
+					Bool("ignore", cmd.design.IgnoreAbnormalContainerExit)
 			}().Msg("container stopped")
 
-			if !errors.Is(err, context.Canceled) && !cmd.design.IgnoreWhenAbnormalContainerExit {
+			if !cmd.design.IgnoreAbnormalContainerExit && !errors.Is(err, context.Canceled) {
 				var exiterr error
 
 				switch {
@@ -160,17 +167,15 @@ func (cmd *runCommand) runNode(ctx context.Context, host contest.Host, alias str
 			}
 
 			if err != nil {
-				entry, err := contest.NewNodeLogEntryWithInterface(alias, true, bson.M{
+				switch entry, eerr := contest.NewNodeLogEntryWithInterface(alias, true, bson.M{
 					"container": name,
 					"error":     err,
-				})
-				if err != nil {
-					l.Error().Err(err).Msg("failed NodeLogEntry")
-
-					return
+				}); {
+				case eerr != nil:
+					l.Error().Err(eerr).Msg("failed NodeLogEntry")
+				default:
+					cmd.logch <- entry
 				}
-
-				cmd.logch <- entry
 
 				return
 			}
@@ -228,7 +233,7 @@ func (cmd *runCommand) stopNodes(ctx context.Context, alias string, _ []string) 
 	return nil
 }
 
-func (cmd *runCommand) nodeContainerConfigs(alias string, host contest.Host) (
+func (*runCommand) nodeContainerConfigs(alias string, host contest.Host) (
 	*container.Config,
 	*container.HostConfig,
 ) {

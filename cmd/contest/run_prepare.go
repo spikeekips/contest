@@ -102,6 +102,7 @@ func (cmd *runCommand) prepareHosts() error {
 		h := cmd.Hosts[i]
 
 		var host contest.Host
+
 		switch {
 		case h.host == "localhost":
 			i, err := contest.NewLocalHost(h.base, h.dockerhost)
@@ -142,11 +143,11 @@ func (cmd *runCommand) prepareHosts() error {
 			}
 
 			if _, err := host.FreePort("check", "tcp"); err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 
 			if _, err := host.FreePort("check", "udp"); err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 
 			return nil
@@ -210,12 +211,15 @@ func (cmd *runCommand) prepareBase() error {
 	suffix := fmt.Sprintf("%s-%s-%s", contestID,
 		localtime.Now().Format("20060102T150405.999999999"), filepath.Base(cmd.Design))
 
-	abs, err := filepath.Abs(cmd.BaseDir)
-	switch {
+	var abs string
+
+	switch i, err := filepath.Abs(cmd.BaseDir); {
 	case err != nil:
 		return e(err, "")
 	default:
-		cmd.basedir = filepath.Join(abs, suffix)
+		cmd.basedir = filepath.Join(i, suffix)
+
+		abs = i
 	}
 
 	for i := range cmd.Hosts {
@@ -243,7 +247,7 @@ func (cmd *runCommand) prepareBase() error {
 func (cmd *runCommand) prepareLogs() error {
 	db, err := contest.NewMongodbFromURI(context.Background(), cmd.Mongodb)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	cmd.db = db
@@ -261,7 +265,7 @@ func (cmd *runCommand) prepareDesign() error {
 
 	log.Debug().Str("content", string(i)).Msg("design")
 
-	if err := yaml.Unmarshal([]byte(i), &cmd.design); err != nil {
+	if err := yaml.Unmarshal(i, &cmd.design); err != nil {
 		return e(err, "")
 	}
 
@@ -272,7 +276,7 @@ func (cmd *runCommand) prepareDesign() error {
 	return nil
 }
 
-func (cmd *runCommand) prepareScenario() error {
+func (cmd *runCommand) prepareScenario() error { //revive:disable-line:cognitive-complexity,function-length,cyclomatic
 	e := util.StringErrorFunc("failed to load scenario")
 
 	log.Debug().Interface("scenario", cmd.design).Msg("scenario loaded")
@@ -329,7 +333,7 @@ func (cmd *runCommand) prepareScenario() error {
 	// NOTE nodes design
 	designs := map[string]string{}
 
-	nodes := cmd.design.NodeDesigns.AllNodes()
+	nodes := cmd.design.Designs.AllNodes()
 
 	for i := range nodes {
 		alias := nodes[i]
@@ -346,7 +350,7 @@ func (cmd *runCommand) prepareScenario() error {
 			},
 		}
 
-		bc, err := contest.CompileTemplate(cmd.design.NodeDesigns.Common, vars, extra)
+		bc, err := contest.CompileTemplate(cmd.design.Designs.Common, vars, extra)
 		if err != nil {
 			return e(err, "failed to compile common design for %s", alias)
 		}
@@ -371,7 +375,7 @@ func (cmd *runCommand) prepareScenario() error {
 			},
 		}
 
-		bn, err := contest.CompileTemplate(cmd.design.NodeDesigns.Nodes[alias], vars, extra)
+		bn, err := contest.CompileTemplate(cmd.design.Designs.Nodes[alias], vars, extra)
 		if err != nil {
 			return e(err, "failed to compile node design for %s", alias)
 		}
@@ -381,12 +385,13 @@ func (cmd *runCommand) prepareScenario() error {
 		log.Debug().Str("node", alias).Interface("design", designs[alias]).Msg("node design generated")
 	}
 
-	genesis, err := contest.CompileTemplate(cmd.design.NodeDesigns.Genesis, vars, nil)
+	genesis, err := contest.CompileTemplate(cmd.design.Designs.Genesis, vars, nil)
 	if err != nil {
 		return e(err, "failed to compile genesis design")
 	}
 
 	genesisfile := filepath.Join(cmd.basedir, "genesis.yml")
+
 	f, err := os.OpenFile(genesisfile, os.O_WRONLY|os.O_CREATE, 0o600)
 	if err != nil {
 		return errors.Wrapf(err, "failed to create genesis file for %q", genesisfile)
@@ -413,6 +418,7 @@ func (cmd *runCommand) prepareScenario() error {
 		}
 
 		configfile := filepath.Join(cmd.basedir, alias+".yml")
+
 		if err := func() error {
 			f, err := os.OpenFile(configfile, os.O_WRONLY|os.O_CREATE, 0o600)
 			if err != nil {
@@ -447,7 +453,6 @@ func (cmd *runCommand) prepareScenario() error {
 		); err != nil {
 			return e(err, "")
 		}
-
 	}
 
 	cmd.vars = vars
@@ -501,7 +506,7 @@ func (cmd *runCommand) checkLocalPublishHost() error {
 	return nil
 }
 
-func (cmd *runCommand) checkImages(client *dockerClient.Client, images ...string) error {
+func (*runCommand) checkImages(client *dockerClient.Client, images ...string) error {
 	for i := range images {
 		image := images[i]
 
