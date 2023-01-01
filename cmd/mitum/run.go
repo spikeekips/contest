@@ -73,7 +73,7 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 		ps.Name("when-new-block-saved-in-consensus-state-func"), cmd.pWhenNewBlockSavedInConsensusStateFunc)
 	_ = pps.POK(launch.PNameStates).
 		PreAfterOK(ps.Name("fixed-proposer-selector"), PFixedProposerSelector, launch.PNameProposerSelector).
-		PostBeforeOK(PNameFilterNotifyMsgFunc, PFilterNotifyMsgFunc, launch.PNamePatchMemberlist).
+		PreBeforeOK(PNameFilterNotifyMsgFunc, PFilterNotifyMsgFunc, launch.PNameNetworkHandlers).
 		PreAfterOK(PNameCustomBallotStuckResolver, PBallotStuckResolver, launch.PNameBallotStuckResolver)
 
 	_ = pps.SetLogging(log)
