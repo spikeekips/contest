@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"sync"
 
 	"github.com/dop251/goja"
 	"github.com/pkg/errors"
@@ -64,7 +65,12 @@ func PFilterNotifyMsgFunc(ctx context.Context) (context.Context, error) {
 }
 
 func filterNotifyMsgFunc(vm *goja.Runtime, f goja.Callable, old launch.FilterMemberlistNotifyMsgFunc) launch.FilterMemberlistNotifyMsgFunc {
+	var lock sync.Mutex
+
 	return func(i interface{}) bool {
+		lock.Lock()
+		defer lock.Unlock()
+
 		b, err := util.MarshalJSON(i)
 		if err != nil {
 			return true

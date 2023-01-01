@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"sync"
 
 	"github.com/dop251/goja"
 	"github.com/pkg/errors"
@@ -79,7 +80,12 @@ func PFixedProposerSelector(ctx context.Context) (context.Context, error) {
 }
 
 func proposerSelectFunc(vm *goja.Runtime, f goja.Callable) func(context.Context, base.Point, []base.Node) (base.Node, error) {
+	var lock sync.Mutex
+
 	return func(_ context.Context, point base.Point, nodes []base.Node) (base.Node, error) {
+		lock.Lock()
+		defer lock.Unlock()
+
 		jpoint := map[string]interface{}{
 			"height": point.Height(),
 			"round":  point.Round(),
