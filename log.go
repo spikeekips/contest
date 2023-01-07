@@ -74,7 +74,13 @@ func (w *WatchLogs) start(ctx context.Context, savelogch chan LogEntry) error {
 		return err
 	}
 
-	w.Log().Debug().Stringer("query", queries[0]).Msg("querying")
+	if len(queries) > 0 {
+		w.Log().Debug().Stringer("query", queries[0]).Msg("querying")
+	}
+
+	if len(active.Log) > 0 {
+		w.expectLog(active.Log)
+	}
 
 	interval := w.checkInterval
 	initialWait := active.InitialWait
@@ -101,6 +107,10 @@ end:
 				return err
 			}
 
+			if len(active.Log) > 0 {
+				w.expectLog(active.Log)
+			}
+
 			if active.Interval > 1 {
 				interval = active.Interval
 			}
@@ -112,7 +122,7 @@ end:
 			updated = true
 		}
 
-		if updated {
+		if updated && len(queries) > 0 {
 			w.Log().Debug().Dur("interval", interval).Stringer("query", queries[0]).Msg("querying")
 		}
 
@@ -139,6 +149,12 @@ func (w *WatchLogs) newactive() (newactive ExpectScenario, queries []ConditionQu
 			Msg("failed to compile expect")
 
 		return active, nil, err
+	}
+
+	if len(active.Log) > 0 {
+		w.actives = left
+
+		return active, nil, nil
 	}
 
 	qs, err := w.compileConditionQueries(active)
@@ -258,6 +274,10 @@ func (w *WatchLogs) compileConditionQuery(s string, vars *Vars) (ConditionQuery,
 func (w *WatchLogs) evaluate(
 	ctx context.Context, expect ExpectScenario, queries []ConditionQuery,
 ) (left []ConditionQuery, ok bool, _ error) {
+	if len(expect.Log) > 0 {
+		return nil, true, nil
+	}
+
 	current, err := expect.Compile(w.vars)
 	if err != nil {
 		return left, false, err
@@ -372,6 +392,10 @@ end:
 			log.Error().Err(err).Msg("failed to save logs")
 		}
 	}
+}
+
+func (w *WatchLogs) expectLog(s string) {
+	w.Log().Info().Msgf("expect log: %s", s)
 }
 
 type ConditionQuery interface {

@@ -14,12 +14,12 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-type FixedProposerSelector struct {
+type ProposerSelector struct {
 	proposerSelector isaac.ProposerSelector
 	f                func(context.Context, base.Point, []base.Node) (base.Node, error)
 }
 
-func (p FixedProposerSelector) Select(ctx context.Context, point base.Point, nodes []base.Node) (base.Node, error) {
+func (p ProposerSelector) Select(ctx context.Context, point base.Point, nodes []base.Node) (base.Node, error) {
 	switch n, err := p.f(ctx, point, nodes); {
 	case err != nil:
 		return nil, err
@@ -30,7 +30,7 @@ func (p FixedProposerSelector) Select(ctx context.Context, point base.Point, nod
 	}
 }
 
-func PFixedProposerSelector(ctx context.Context) (context.Context, error) {
+func PProposerSelector(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var designString string
 	var proposerSelector isaac.ProposerSelector
@@ -45,7 +45,7 @@ func PFixedProposerSelector(ctx context.Context) (context.Context, error) {
 
 	var script string
 
-	switch i, err := loadScript(designString, "fixed-proposer-selector"); {
+	switch i, err := loadScript(designString, "proposer-selector"); {
 	case errors.Is(err, util.ErrNotFound):
 		return ctx, nil
 	case err != nil:
@@ -55,7 +55,7 @@ func PFixedProposerSelector(ctx context.Context) (context.Context, error) {
 	}
 
 	mlog := logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-		return zctx.Str("module", "fixed-proposer-selector")
+		return zctx.Str("module", "proposer-selector")
 	}).SetLogging(log)
 
 	vm, err := prepareJAVM(mlog)
@@ -69,12 +69,12 @@ func PFixedProposerSelector(ctx context.Context) (context.Context, error) {
 
 	caller, ok := goja.AssertFunction(vm.Get("selectProposer"))
 	if !ok {
-		return ctx, errors.Errorf("function, `selectProposer` not found in `fixed-proposer-selector` design")
+		return ctx, errors.Errorf("function, `selectProposer` not found in `proposer-selector` design")
 	}
 
 	log.Log().Debug().Str("script", script).Msg("`selectProposer` loaded from design")
 
-	p := FixedProposerSelector{proposerSelector: proposerSelector, f: proposerSelectFunc(vm, caller)}
+	p := ProposerSelector{proposerSelector: proposerSelector, f: proposerSelectFunc(vm, caller)}
 
 	return context.WithValue(ctx, launch.ProposerSelectorContextKey, p), nil
 }

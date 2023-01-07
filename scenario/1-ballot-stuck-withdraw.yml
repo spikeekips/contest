@@ -1,13 +1,18 @@
 # 3 nodes can do consensus
 # - 3 nodes: no0, no1, no2
 # - all nodes are in suffrage from genesis
+# - 100, thrshold
 # - no0 does init
 # - all nodes start
 # - all nodes will be in consensus
-# - height, 3, all nodes in ballot stuck
-# - all nodes will be in consensus
+# - no0, no1 blocks the ballots, which is height=2, round=0 and node=no2
+# - consensus stuck
+# - no0 and no1 withdraw no2
+# - no2 be removed from suffrage of no0 and no1
 
 ---
+ignore_abnormal_container_exit: true
+
 vars:
   .network_id: mitum contest; Sat 26 Dec 2020 05:29:13 AM KST
 
@@ -26,8 +31,9 @@ designs:
     storage:
       base: /data
     parameters:
+      threshold: 100
       ballot_stuck_wait: 10s
-      ballot_stuck_resolve_after: 6s
+      ballot_stuck_resolve_after: 10s
 
   genesis: |
       facts:
@@ -67,18 +73,20 @@ designs:
               point = m.sign_fact.fact.point
               node = m.sign_fact.sign.node
             } catch (e) {
-              return true
+              try {
+                point = m.fact.point
+                node = m.sign.node
+              } catch (e) {
+                 return true
+              }
             }
 
-            if (point.height != 3 || point.round != 0) {
-              return true
-            }
-
-            if (node == "no1sas" || node == "no2sas") {
+            if (point.height == 2 && point.round == 0 && node == "{{ .nodes.no2.address }}") {
               log.debug("filtered", "m", m)
+
               return false
             }
-    
+
             return true
           }
 
@@ -99,18 +107,20 @@ designs:
               point = m.sign_fact.fact.point
               node = m.sign_fact.sign.node
             } catch (e) {
-              return true
-            }
-    
-            if (point.height != 3 || point.round != 0) {
-              return true
+              try {
+                point = m.fact.point
+                node = m.sign.node
+              } catch (e) {
+                 return true
+              }
             }
 
-            if (node == "no0sas" || node == "no2sas") {
+            if (point.height == 2 && point.round == 0 && node == "{{ .nodes.no2.address }}") {
               log.debug("filtered", "m", m)
+
               return false
             }
-    
+
             return true
           }
 
@@ -125,24 +135,23 @@ designs:
         script: |
           function filterNotifyMsg(m) {
             var point;
-            var node;
 
             try {
               point = m.sign_fact.fact.point
-              node = m.sign_fact.sign.node
             } catch (e) {
-              return true
-            }
-    
-            if (point.height != 3 || point.round != 0) {
-              return true
+              try {
+                point = m.fact.point
+              } catch (e) {
+                 return true
+              }
             }
 
-            if (node == "no0sas" || node == "no1sas") {
+            if (point.height == 2) {
               log.debug("filtered", "m", m)
+
               return false
             }
-    
+
             return true
           }
 
@@ -192,21 +201,17 @@ expects:
 
   - condition: |
       {"node": "no1", "x.message": "state switched", "x.current_state": "BOOTING", "x.next_state.next": "SYNCING"}
-    registers:
-      - assign: .matched.no1.stopped_to_syncing
 
   - condition: |
       {"node": "no2", "x.message": "state switched", "x.current_state": "BOOTING", "x.next_state.next": "SYNCING"}
-    registers:
-      - assign: .matched.no2.stopped_to_syncing
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no1.stopped_to_syncing._id }}" }, "node": "no1", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
+      {"node": "no1", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
     registers:
       - assign: .matched.no1.joining_to_consensus
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no2.stopped_to_syncing._id }}" }, "node": "no2", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
+      {"node": "no2", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
     registers:
       - assign: .matched.no2.joining_to_consensus
 
@@ -216,16 +221,76 @@ expects:
       - assign: .matched.no2.new_block_saved
 
   - condition: |
-      {"x.height": {"$gt": {{ .matched.no2.new_block_saved.x.height }} }, "x.message": "new block saved"}
+      {"x.height": {"$gte": {{ .matched.no2.new_block_saved.x.height }} }, "x.message": "new block saved"}
     range:
       - node: [no0, no1, no2]
 
   - condition: |
-      {"x.module": "default-ballot-stuck-resolver", "x.point.stage": "INIT", "x.point.height": 3, "x.point.round": 0, "x.message":"ballot stuck found"}
+      {"x.point.height": 2, "x.point.round": 0, "x.point.stage": "INIT", "x.message": "ballot stuck found"}
     range:
-      - node: [no0, no1, no2]
+      - node: [no0, no1]
+
+  - log: wait ballot stuck
 
   - condition: |
-      {"x.height": {"$gt": 4 }, "x.message": "new block saved"}
+      {"x.sign_fact.fact.point.height": 2, "x.sign_fact.fact.point.round": 1, "x.sign_fact.fact.point.stage": "INIT", "x.sign_fact.sign.node": "{{ .nodes.no0.address }}", "x.message": "ballot voted"}
     range:
-      - node: [no0, no1, no2]
+      - node: [no0, no1]
+
+  - condition: |
+      {"x.sign_fact.fact.point.height": 2, "x.sign_fact.fact.point.round": 1, "x.sign_fact.fact.point.stage": "INIT", "x.sign_fact.sign.node": "{{ .nodes.no1.address }}", "x.message": "ballot voted"}
+    range:
+      - node: [no0, no1]
+
+  - condition: |
+      {"x.voteproof.point.height": 2, "x.voteproof.point.round": 0, "x.voteproof.point.stage": "INIT", "x.voteproof._hint": {"$regex": "^init-stuck-voteproof-"}, "x.voteproof.withdraws": {"$size": 1}, "x.voteproof.withdraws.fact.node": "{{ .nodes.no2.address }}", "x.message": "new voteproof"}
+    range:
+      - node: [no0, no1]
+
+  - condition: |
+      $ state="{{ hostBase .self.host }}/withdraw-state.json"; \
+        {{ hostFile .self.host "cmd" }} network client \
+             '{"key":"suffrage","_hint":"state-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" > $state && \
+        cat $state && \
+        cat $state | jq -e -c '(.value.nodes | length) == 2' && \
+        cat $state | jq -e -c '.value.nodes[] | select( (.address == "{{ .nodes.no0.address }}") and (.publickey == "{{ .nodes.no0.publickey }}"))' && \
+        cat $state | jq -e -c '.value.nodes[] | select( (.address == "{{ .nodes.no1.address }}") and (.publickey == "{{ .nodes.no1.publickey }}"))'
+    range:
+      - node: [no0, no1]
+    interval: 2s
+
+  - condition: |
+      $ cat "{{ hostBase .self.host }}/withdraw-state.json" | jq -e -c '.height'
+    range:
+      - node: [no1]
+    registers:
+      - assign: .matched.new_suffrage_height
+
+  - condition: |
+      {"x.message": "new block saved", "x.height": {"$gt": {{ .matched.new_suffrage_height }} }}
+    range:
+      - node: [no0, no1]
+    registers:
+      - assign: .matched.new_block_saved_after_withdraw
+
+
+  - condition: |
+      $ {{ hostFile .self.host "cmd" }} network client '{"_hint":"node-info-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" | \
+        jq -e -c 'select(.consensus.state == "CONSENSUS")'
+    interval: 2s
+    range:
+      - node: [no1]
+
+  - condition: |
+      $ {{ hostFile .self.host "cmd" }} network client '{"_hint":"node-info-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" | \
+        jq -e -c 'select(.consensus.state == "CONSENSUS")'
+    interval: 2s
+    range:
+      - node: [no1]
+
+  - condition: |
+      $ {{ hostFile .self.host "cmd" }} network client '{"_hint":"node-info-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" | \
+        jq -e -c 'select(.consensus.state == "SYNCING")'
+    interval: 2s
+    range:
+      - node: [no1]

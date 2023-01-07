@@ -67,35 +67,35 @@ func PFilterNotifyMsgFunc(ctx context.Context) (context.Context, error) {
 func filterNotifyMsgFunc(vm *goja.Runtime, f goja.Callable, old launch.FilterMemberlistNotifyMsgFunc) launch.FilterMemberlistNotifyMsgFunc {
 	var lock sync.Mutex
 
-	return func(i interface{}) bool {
+	return func(i interface{}) (bool, error) {
 		lock.Lock()
 		defer lock.Unlock()
 
 		b, err := util.MarshalJSON(i)
 		if err != nil {
-			return true
+			return true, err
 		}
 
 		var m map[string]interface{}
 
 		if err := util.UnmarshalJSON(b, &m); err != nil {
-			return true
+			return true, err
 		}
 
 		res, err := f(goja.Undefined(), vm.ToValue(m))
 		if err != nil {
-			return true
+			return true, errors.WithStack(err)
 		}
 
 		switch t := res.Export().(type) {
 		case bool:
 			if !t {
-				return false
+				return false, nil
 			}
 
 			return old(i)
 		default:
-			return true // NOTE ignore
+			return true, nil // NOTE ignore
 		}
 	}
 }

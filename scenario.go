@@ -120,6 +120,7 @@ func (s NodeDesigns) AllNodes() []string {
 
 type ExpectScenario struct {
 	Condition   string                `yaml:"condition"`
+	Log         string                `yaml:"log"`
 	Range       []map[string][]string `yaml:"range"`
 	Actions     []ScenarioAction      `yaml:"actions"`
 	Registers   []ScenarioRegister    `yaml:"registers"`
@@ -129,6 +130,10 @@ type ExpectScenario struct {
 
 func (s ExpectScenario) IsValid(b []byte) error {
 	e := util.StringErrorFunc("invalid ExpectScenario")
+
+	if len(s.Log) > 0 {
+		return nil
+	}
 
 	if len(s.Condition) < 1 {
 		return e(nil, "empty condition")
@@ -193,6 +198,7 @@ func (s ExpectScenario) Compile(vars *Vars) (newexpect ExpectScenario, err error
 	newexpect.Condition = s.Condition
 	newexpect.Actions = make([]ScenarioAction, len(s.Actions))
 	newexpect.Interval = s.Interval
+	newexpect.Log = s.Log
 
 	copy(newexpect.Actions, s.Actions)
 

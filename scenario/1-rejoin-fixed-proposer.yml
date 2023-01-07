@@ -31,7 +31,7 @@ designs:
     storage:
       base: /data
     ballot-stuck-resolver: dummy
-    fixed-proposer-selector:
+    proposer-selector:
       script: |
         function selectProposer(point, nodes) {
             if (nodes.length < 1) {

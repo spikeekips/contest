@@ -72,7 +72,7 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 	_ = pps.POK(launch.PNameStates).PreAddOK(
 		ps.Name("when-new-block-saved-in-consensus-state-func"), cmd.pWhenNewBlockSavedInConsensusStateFunc)
 	_ = pps.POK(launch.PNameStates).
-		PreAfterOK(ps.Name("fixed-proposer-selector"), PFixedProposerSelector, launch.PNameProposerSelector).
+		PreAfterOK(ps.Name("custom-proposer-selector"), PProposerSelector, launch.PNameProposerSelector).
 		PreBeforeOK(PNameFilterNotifyMsgFunc, PFilterNotifyMsgFunc, launch.PNameNetworkHandlers).
 		PreAfterOK(PNameCustomBallotStuckResolver, PBallotStuckResolver, launch.PNameBallotStuckResolver)
 
@@ -126,14 +126,18 @@ func (cmd *RunCommand) run(pctx context.Context) error {
 
 	select {
 	case <-ctx.Done(): // NOTE graceful stop
-		return ctx.Err()
+		cmd.log.Debug().Msg("stopped by signal")
+
+		return nil
 	case err := <-exitch:
 		if errors.Is(err, errHoldStop) {
 			stopstates()
 
 			<-ctx.Done()
 
-			return ctx.Err()
+			cmd.log.Debug().Msg("stopped by signal")
+
+			return nil
 		}
 
 		return err
