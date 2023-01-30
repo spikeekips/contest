@@ -150,7 +150,7 @@ expects:
 
   # check no2 is still in syncing state
   - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client '{"_hint":"node-info-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" | \
+      $ {{ hostFile .self.host "cmd" }} network client --log.level=trace '{"_hint":"node-info-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" | \
         jq -e -c 'select(.consensus.state == "SYNCING")'
     range:
       - node: [no2]
@@ -166,7 +166,7 @@ expects:
       - node: [no0, no1]
 
   - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client '{"_hint":"node-info-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" | \
+      $ {{ hostFile .self.host "cmd" }} network client --log.level=trace '{"_hint":"node-info-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" | \
         jq -e -c 'select(.consensus.state == "SYNCING")'
     range:
       - node: [no2]

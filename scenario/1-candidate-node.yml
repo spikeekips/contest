@@ -95,7 +95,7 @@ expects:
     - type: "host-command"
       args:
         - |
-          $ echo '{"fact": { "address": "{{ .nodes.no1.address }}", "publickey": "{{ .nodes.no1.publickey }}", "_hint": "suffrage-candidate-fact-v0.0.1" }, "_hint": "suffrage-candidate-operation-v0.0.1"}' | {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no1.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no1.address }}" --token findme | {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no0.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no0.address }}" | {{ hostFile .self.host "cmd" }} network client '{"_hint":"send-operation-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" --body=-
+          $ echo '{"fact": { "address": "{{ .nodes.no1.address }}", "publickey": "{{ .nodes.no1.publickey }}", "_hint": "suffrage-candidate-fact-v0.0.1" }, "_hint": "suffrage-candidate-operation-v0.0.1"}' | {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no1.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no1.address }}" --token findme | {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no0.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no0.address }}" | {{ hostFile .self.host "cmd" }} network client --log.level=trace '{"_hint":"send-operation-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" --body=-
       range:
         - node: [no0]
 
@@ -104,14 +104,14 @@ expects:
 
   # check state of candidate operation
   - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client '{"key":"suffrage_candidate","_hint":"state-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" | jq -e -c '. as $root | .value.nodes[] | select( (.node.address == "{{ .nodes.no1.address }}") and (.node.publickey == "{{ .nodes.no1.publickey }}")) | $root'
+      $ {{ hostFile .self.host "cmd" }} network client --log.level=trace '{"key":"suffrage_candidate","_hint":"state-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" | jq -e -c '. as $root | .value.nodes[] | select( (.node.address == "{{ .nodes.no1.address }}") and (.node.publickey == "{{ .nodes.no1.publickey }}")) | $root'
     range:
       - node: [no0]
     registers:
       - assign: .matched.candidate_state_in_state
         format: json
   - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client '{"key":"suffrage_candidate","_hint":"state-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" | jq -e -c '. as $root | .value.nodes[] | select( (.node.address == "{{ .nodes.no1.address }}") and (.node.publickey == "{{ .nodes.no1.publickey }}"))'
+      $ {{ hostFile .self.host "cmd" }} network client --log.level=trace '{"key":"suffrage_candidate","_hint":"state-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" | jq -e -c '. as $root | .value.nodes[] | select( (.node.address == "{{ .nodes.no1.address }}") and (.node.publickey == "{{ .nodes.no1.publickey }}"))'
     range:
       - node: [no0]
     registers:
@@ -142,7 +142,7 @@ expects:
       - type: "host-command"
         args:
           - |
-            $ op="{{ hostBase .self.host }}/{{ uuid }}.json"; echo '{"fact": {"candidate": "{{ .nodes.no1.address }}", "_hint": "suffrage-join-fact-v0.0.1", "start_height": {{ .matched.candidate_in_state.start }} }, "_hint": "suffrage-join-operation-v0.0.1"}' | {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no1.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no1.address }}" --token findme | {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no0.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no0.address }}" > "$op"; {{ hostFile .self.host "cmd" }} network client '{"_hint":"send-operation-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" --body="$op"; {{ hostFile .self.host "cmd" }} network client '{"_hint":"send-operation-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" --body="$op"
+            $ op="{{ hostBase .self.host }}/{{ uuid }}.json"; echo '{"fact": {"candidate": "{{ .nodes.no1.address }}", "_hint": "suffrage-join-fact-v0.0.1", "start_height": {{ .matched.candidate_in_state.start }} }, "_hint": "suffrage-join-operation-v0.0.1"}' | {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no1.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no1.address }}" --token findme | {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no0.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no0.address }}" > "$op"; {{ hostFile .self.host "cmd" }} network client --log.level=trace '{"_hint":"send-operation-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" --body="$op"; {{ hostFile .self.host "cmd" }} network client --log.level=trace '{"_hint":"send-operation-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" --body="$op"
         range:
           - node: [no0]
        
@@ -150,12 +150,12 @@ expects:
       {"node": "no1", "x.message": "local is in consensus nodes and is in suffrage?", "x.in_suffrage": true}
 
   - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client '{"key":"suffrage","_hint":"state-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure"
+      $ {{ hostFile .self.host "cmd" }} network client --log.level=trace '{"key":"suffrage","_hint":"state-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure"
     range:
       - node: [no0]
 
   - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client '{"key":"suffrage","_hint":"state-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" | jq -e -c '. as $root | .value.nodes[] | select( (.address == "{{ .nodes.no1.address }}") and (.publickey == "{{ .nodes.no1.publickey }}") ) | $root'
+      $ {{ hostFile .self.host "cmd" }} network client --log.level=trace '{"key":"suffrage","_hint":"state-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" | jq -e -c '. as $root | .value.nodes[] | select( (.address == "{{ .nodes.no1.address }}") and (.publickey == "{{ .nodes.no1.publickey }}") ) | $root'
     range:
       - node: [no0]
     registers:

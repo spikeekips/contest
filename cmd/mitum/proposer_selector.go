@@ -121,7 +121,7 @@ func proposerSelectFunc(vm *goja.Runtime, f goja.Callable) func(context.Context,
 			})
 
 			if i < 0 {
-				return nil, errors.Errorf("unknown node address returned, %q", s)
+				return nil, nil
 			}
 
 			return nodes[i], nil
