@@ -226,24 +226,26 @@ expects:
       - node: [no0, no1, no2]
 
   - condition: |
-      {"x.point.height": 2, "x.point.round": 0, "x.point.stage": "INIT", "x.message": "ballot stuck found"}
+      {"x.point.height": 2, "x.point.stage": "INIT", "x.message": "ballot stuck found"}
     range:
       - node: [no0, no1]
+    registers:
+      - assign: .matched.ballot_stuck
 
   - log: wait ballot stuck
 
   - condition: |
-      {"x.sign_fact.fact.point.height": 2, "x.sign_fact.fact.point.round": 1, "x.sign_fact.fact.point.stage": "INIT", "x.sign_fact.sign.node": "{{ .nodes.no0.address }}", "x.message": "ballot voted"}
+      {"x.sign_fact.fact.point.height": 2, "x.sign_fact.fact.point.round": {{ addInt .matched.ballot_stuck.x.point.round 1 }}, "x.sign_fact.fact.point.stage": "INIT", "x.sign_fact.sign.node": "{{ .nodes.no0.address }}", "x.message": "ballot voted"}
     range:
       - node: [no0, no1]
 
   - condition: |
-      {"x.sign_fact.fact.point.height": 2, "x.sign_fact.fact.point.round": 1, "x.sign_fact.fact.point.stage": "INIT", "x.sign_fact.sign.node": "{{ .nodes.no1.address }}", "x.message": "ballot voted"}
+      {"x.sign_fact.fact.point.height": 2, "x.sign_fact.fact.point.round": {{ addInt .matched.ballot_stuck.x.point.round 1 }}, "x.sign_fact.fact.point.stage": "INIT", "x.sign_fact.sign.node": "{{ .nodes.no1.address }}", "x.message": "ballot voted"}
     range:
       - node: [no0, no1]
 
   - condition: |
-      {"x.voteproof.point.height": 2, "x.voteproof.point.round": 0, "x.voteproof.point.stage": "INIT", "x.voteproof._hint": {"$regex": "^init-stuck-voteproof-"}, "x.voteproof.withdraws": {"$size": 1}, "x.voteproof.withdraws.fact.node": "{{ .nodes.no2.address }}", "x.message": "new voteproof"}
+      {"x.voteproof.point.height": 2, "x.voteproof.point.round": {{ .matched.ballot_stuck.x.point.round }}, "x.voteproof.point.stage": "INIT", "x.voteproof._hint": {"$regex": "^init-stuck-voteproof-"}, "x.voteproof.withdraws": {"$size": 1}, "x.voteproof.withdraws.fact.node": "{{ .nodes.no2.address }}", "x.message": "new voteproof"}
     range:
       - node: [no0, no1]
 
