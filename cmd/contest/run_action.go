@@ -69,7 +69,7 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 		}
 	case "run-redis":
 		err := cmd.hosts.TraverseByHost(func(h contest.Host, _ []string) (bool, error) {
-			if err := cmd.startRedisContainer(ctx, h, func(body container.ContainerWaitOKBody, err error) {
+			if err := cmd.startRedisContainer(ctx, h, func(body container.WaitResponse, err error) {
 				if err != nil {
 					cmd.exitch <- err
 

@@ -13,7 +13,6 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/network/quicstream"
@@ -176,38 +175,28 @@ func (cmd *RunCommand) runStates(ctx, pctx context.Context) (func(), error) {
 
 func (cmd *RunCommand) pWhenNewBlockSavedInConsensusStateFunc(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
-	var db isaac.Database
-	var params *isaac.LocalParams
-	var ballotbox *isaacstates.Ballotbox
-	var nodeinfo *isaacnetwork.NodeInfoUpdater
 
 	if err := util.LoadFromContextOK(pctx,
 		launch.LoggingContextKey, &log,
-		launch.CenterDatabaseContextKey, &db,
-		launch.LocalParamsContextKey, &params,
-		launch.BallotboxContextKey, &ballotbox,
-		launch.NodeInfoContextKey, &nodeinfo,
 	); err != nil {
 		return pctx, err
 	}
 
-	f := func(height base.Height) {
-		launch.WhenNewBlockSavedInConsensusStateFunc(params, ballotbox, db, nodeinfo)(height)
-
-		l := log.Log().With().Interface("height", height).Logger()
-		l.Debug().Msg("new block saved")
-
-		if cmd.Hold.IsSet() && height == cmd.Hold.Height() {
-			l.Debug().Msg("will be stopped by hold")
-
-			cmd.exitf(errHoldStop.Call())
-
-			return
-		}
-	}
-
 	//revive:disable-next-line:modifies-parameter
-	pctx = context.WithValue(pctx, launch.WhenNewBlockSavedInConsensusStateFuncContextKey, f)
+	pctx = context.WithValue(pctx,
+		launch.WhenNewBlockSavedInConsensusStateFuncContextKey,
+		func(height base.Height) {
+			l := log.Log().With().Interface("height", height).Logger()
+
+			if cmd.Hold.IsSet() && height == cmd.Hold.Height() {
+				l.Debug().Msg("will be stopped by hold")
+
+				cmd.exitf(errHoldStop.Call())
+
+				return
+			}
+		},
+	)
 
 	return pctx, nil
 }

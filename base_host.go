@@ -109,8 +109,10 @@ func (h *baseHost) cleanContainers(remove bool) error { //revive:disable-line:fl
 		func(ctx context.Context, i, _ uint64) error {
 			cid := cids[i]
 
+			timeout := int(defaultContainerStopTimeout.Seconds())
+
 			_ = h.client.ContainerPause(context.Background(), cid)
-			_ = h.client.ContainerStop(context.Background(), cid, &defaultContainerStopTimeout)
+			_ = h.client.ContainerStop(context.Background(), cid, container.StopOptions{Timeout: &timeout})
 
 			if remove {
 				_ = h.client.ContainerRemove(context.Background(), cid, dockerTypes.ContainerRemoveOptions{
@@ -230,7 +232,7 @@ func (h *baseHost) StartContainer(
 	_ *container.HostConfig,
 	_ *network.NetworkingConfig,
 	name string,
-	whenExit func(container.ContainerWaitOKBody, error),
+	whenExit func(container.WaitResponse, error),
 ) error {
 	e := util.StringErrorFunc("failed to start container")
 
@@ -249,7 +251,7 @@ func (h *baseHost) StartContainer(
 
 			select {
 			case err := <-errch:
-				whenExit(container.ContainerWaitOKBody{}, err)
+				whenExit(container.WaitResponse{}, err)
 
 				return
 			case body := <-bodych:
@@ -275,13 +277,16 @@ func (h *baseHost) StopContainer(ctx context.Context, name string, timeout *time
 		return e(err, "")
 	}
 
-	ntimeout := timeout
+	var ntimeout int
 
-	if ntimeout == nil {
-		ntimeout = &defaultContainerStopTimeout
+	switch {
+	case timeout == nil:
+		ntimeout = int(defaultContainerStopTimeout.Seconds())
+	default:
+		ntimeout = int(timeout.Seconds())
 	}
 
-	if err := h.client.ContainerStop(ctx, cid, ntimeout); err != nil {
+	if err := h.client.ContainerStop(ctx, cid, container.StopOptions{Timeout: &ntimeout}); err != nil {
 		return e(err, "")
 	}
 

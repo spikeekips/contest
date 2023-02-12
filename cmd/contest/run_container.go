@@ -20,7 +20,7 @@ import (
 func (*runCommand) startRedisContainer(
 	ctx context.Context,
 	h contest.Host,
-	whenExit func(container.ContainerWaitOKBody, error),
+	whenExit func(container.WaitResponse, error),
 ) error {
 	e := util.StringErrorFunc("failed to start container")
 
@@ -126,7 +126,7 @@ func (cmd *runCommand) runNode( //revive:disable-line:cyclomatic
 		hostconfig,
 		nil,
 		name,
-		func(body container.ContainerWaitOKBody, err error) {
+		func(body container.WaitResponse, err error) {
 			logcancel()
 
 			l := log.With().Stringer("logid", util.UUID()).Logger()

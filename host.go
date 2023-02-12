@@ -59,7 +59,7 @@ type Host interface { //nolint:interfacebloat //...
 		_ *container.HostConfig,
 		_ *dockerNetwork.NetworkingConfig,
 		containerName string,
-		whenExit func(container.ContainerWaitOKBody, error),
+		whenExit func(container.WaitResponse, error),
 	) error
 	StopContainer(_ context.Context, containerName string, _ *time.Duration) error
 	RemoveContainer(_ context.Context, containerName string, _ dockerTypes.ContainerRemoveOptions) error
