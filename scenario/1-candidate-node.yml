@@ -134,7 +134,7 @@ expects:
       {"node": "no1", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
 
   - condition: |
-      {"node": "no1", "x.message": "new block merged", "x.blockmap.manifest.height": {"$gt": {{ .matched.candidate_state_in_state.height }} }}
+      {"node": "no1", "x.message": "new block saved", "x.height": {"$gt": {{ .matched.candidate_state_in_state.height }} }}
 
   - condition: |
       {"node": "no1", "x.message": "local is in consensus nodes and is in suffrage?", "x.in_suffrage": false}
@@ -163,4 +163,4 @@ expects:
         format: json
 
   - condition: |
-      {"node": "no1", "x.message": "new block merged", "x.blockmap.manifest.height": {"$gt": {{ .matched.candidate_joined_state.height }} }}
+      {"node": "no1", "x.message": "new block saved", "x.height": {"$gt": {{ .matched.candidate_joined_state.height }} }}

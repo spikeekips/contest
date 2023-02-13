@@ -87,7 +87,7 @@ expects:
           - node: [no1]
 
   - condition: |
-      {"node": "no1", "x.message": "new block merged", "x.blockmap.manifest.height": 0}
+      {"node": "no1", "x.message": "block write database merged", "x.height": 0}
 
   - condition: |
       {"node": "no1", "x.message": "imported BlockMaps validated"}

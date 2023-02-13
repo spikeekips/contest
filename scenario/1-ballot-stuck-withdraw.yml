@@ -249,6 +249,8 @@ expects:
     range:
       - node: [no0, no1]
 
+  - log: ballot stuck resolved
+
   - condition: |
       $ state="{{ hostBase .self.host }}/withdraw-state.json"; \
         {{ hostFile .self.host "cmd" }} network client --log.level=trace \
@@ -272,9 +274,11 @@ expects:
       {"x.message": "new block saved", "x.height": {"$gt": {{ .matched.new_suffrage_height }} }}
     range:
       - node: [no0, no1]
-    registers:
-      - assign: .matched.new_block_saved_after_withdraw
 
+  - condition: |
+      {"x.message": "new block confirmed", "x.height": {"$gt": {{ .matched.new_suffrage_height }} }}
+    range:
+      - node: [no0, no1]
 
   - condition: |
       $ {{ hostFile .self.host "cmd" }} network client --log.level=trace '{"_hint":"node-info-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" | \
