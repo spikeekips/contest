@@ -48,6 +48,7 @@ func (*runCommand) startRedisContainer(
 			"--port",
 			port,
 		},
+		Labels: map[string]string{"prog": contest.ContainerLabel},
 	}
 
 	hostconfig := &container.HostConfig{
@@ -246,6 +247,7 @@ func (*runCommand) nodeContainerConfigs(alias string, host contest.Host) (
 			AttachStdout: true,
 			AttachStderr: true,
 			WorkingDir:   "/data",
+			Labels:       map[string]string{"prog": contest.ContainerLabel},
 		},
 		&container.HostConfig{
 			NetworkMode: container.NetworkMode("host"),
