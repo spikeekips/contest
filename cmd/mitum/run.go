@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -28,10 +29,13 @@ type RunCommand struct { //nolint:govet //...
 	Vault           string                `name:"vault" help:"privatekey path of vault"`
 	Discovery       []launch.ConnInfoFlag `help:"member discovery" placeholder:"connection info"`
 	Hold            launch.HeightFlag     `help:"hold consensus states" placeholder:"height"`
-	HTTPState       string                `name:"http-state" help:"runtime statistics thru https" placeholder:"bind address"`
+	DebugHTTP       string                `name:"debug-http" help:"runtime debug thru https" placeholder:"bind address" default:":9090"`
+	Statsviz        bool                  `name:"statsviz" help:"enable statsviz thru https"`
+	Pprof           bool                  `name:"pprof" help:"enable runtime pprof thru https"`
 	exitf           func(error)
 	log             *zerolog.Logger
 	holded          bool
+	mux             *http.ServeMux
 	//revive:enable:line-length-limit
 }
 
@@ -46,16 +50,35 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 		Interface("vault", cmd.Vault).
 		Interface("discovery", cmd.Discovery).
 		Interface("hold", cmd.Hold).
-		Interface("http_state", cmd.HTTPState).
+		Interface("debug_http", cmd.DebugHTTP).
+		Interface("statsviz", cmd.Statsviz).
+		Interface("pprof", cmd.Pprof).
 		Interface("dev", cmd.DevFlags).
 		Msg("flags")
 
 	cmd.log = log.Log()
 
-	if len(cmd.HTTPState) > 0 {
-		if err := cmd.runHTTPState(cmd.HTTPState); err != nil {
-			return errors.Wrap(err, "failed to run http state")
+	if cmd.Statsviz {
+		if err := cmd.enableStatsviz(); err != nil {
+			return errors.Wrap(err, "failed to enable statsviz")
 		}
+	}
+
+	if cmd.Pprof {
+		if err := cmd.enablePprof(); err != nil {
+			return errors.Wrap(err, "failed to enable pprof")
+		}
+	}
+
+	if cmd.mux != nil {
+		addr, err := net.ResolveTCPAddr("tcp", cmd.DebugHTTP)
+		if err != nil {
+			return errors.Wrap(err, "failed to parse --debug-http")
+		}
+
+		go func() {
+			_ = http.ListenAndServe(addr.String(), cmd.mux)
+		}()
 	}
 
 	//revive:disable:modifies-parameter
@@ -224,22 +247,32 @@ func (cmd *RunCommand) pCheckHold(pctx context.Context) (context.Context, error)
 	return pctx, nil
 }
 
-func (cmd *RunCommand) runHTTPState(bind string) error {
-	addr, err := net.ResolveTCPAddr("tcp", bind)
-	if err != nil {
-		return errors.Wrap(err, "failed to parse --http-state")
+func (cmd *RunCommand) enableStatsviz() error {
+	if cmd.mux == nil {
+		cmd.mux = http.NewServeMux()
 	}
 
-	mux := http.NewServeMux()
-	if err := statsviz.Register(mux); err != nil {
+	if err := statsviz.Register(cmd.mux); err != nil {
 		return errors.Wrap(err, "failed to register statsviz for http-state")
 	}
 
-	cmd.log.Debug().Stringer("bind", addr).Msg("statsviz started")
+	cmd.log.Debug().Msg("statsviz registered")
 
-	go func() {
-		_ = http.ListenAndServe(addr.String(), mux)
-	}()
+	return nil
+}
+
+func (cmd *RunCommand) enablePprof() error {
+	cmd.log.Debug().Msg("pprof registered")
+
+	if cmd.mux == nil {
+		cmd.mux = http.NewServeMux()
+	}
+
+	cmd.mux.HandleFunc("/debug/pprof/", pprof.Index)
+	cmd.mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	cmd.mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	cmd.mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	cmd.mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
 	return nil
 }

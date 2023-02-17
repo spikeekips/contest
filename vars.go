@@ -228,17 +228,20 @@ func renameVar(m map[string]interface{}, keys, newkey string) error {
 	l := m
 
 	for _, k := range ks {
-		if j, found := l[k]; !found {
+		j, found := l[k]
+		if !found {
 			l[k] = map[string]interface{}{}   //nolint:forcetypeassert //...
 			l = l[k].(map[string]interface{}) //nolint:forcetypeassert //...
-		} else {
-			v = j
-			foundkey = true
 
-			delete(l, k)
-
-			break
+			continue
 		}
+
+		v = j
+		foundkey = true
+
+		delete(l, k)
+
+		break
 	}
 
 	if !foundkey {
