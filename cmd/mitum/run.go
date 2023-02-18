@@ -22,16 +22,20 @@ import (
 	"github.com/spikeekips/mitum/util/ps"
 )
 
+type DebugFlags struct {
+	DebugHTTP string `name:"debug-http" help:"runtime debug thru https" group:"dev" placeholder:"bind address" default:":9090"`
+	Statsviz  bool   `name:"statsviz" help:"enable statsviz thru https" group:"dev"`
+	Pprof     bool   `name:"pprof" help:"enable runtime pprof thru https" group:"dev"`
+}
+
 type RunCommand struct { //nolint:govet //...
 	//revive:disable:line-length-limit
 	launch.DesignFlag
 	launch.DevFlags `embed:"" prefix:"dev."`
+	DebugFlags      `embed:"" prefix:"dev."`
 	Vault           string                `name:"vault" help:"privatekey path of vault"`
 	Discovery       []launch.ConnInfoFlag `help:"member discovery" placeholder:"connection info"`
 	Hold            launch.HeightFlag     `help:"hold consensus states" placeholder:"height"`
-	DebugHTTP       string                `name:"debug-http" help:"runtime debug thru https" placeholder:"bind address" default:":9090"`
-	Statsviz        bool                  `name:"statsviz" help:"enable statsviz thru https"`
-	Pprof           bool                  `name:"pprof" help:"enable runtime pprof thru https"`
 	exitf           func(error)
 	log             *zerolog.Logger
 	holded          bool
