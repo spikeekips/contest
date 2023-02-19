@@ -296,7 +296,11 @@ func (h *baseHost) StopContainer(ctx context.Context, name string, timeout *time
 func (h *baseHost) RemoveContainer(ctx context.Context, name string, options dockerTypes.ContainerRemoveOptions) error {
 	e := util.StringErrorFunc("failed to remove container")
 
-	if _, err := h.containers.Remove(name, func(i string) error {
+	if _, err := h.containers.Remove(name, func(i string, found bool) error {
+		if !found {
+			return nil
+		}
+
 		if err := h.client.ContainerRemove(ctx, i, options); err != nil {
 			return errors.WithStack(err)
 		}
@@ -342,7 +346,7 @@ func (h *baseHost) freePort(
 	id, n string,
 	f func(n string) (port string, _ error),
 ) (string, error) {
-	i, _, err := h.ports.Get(id, func() (string, error) {
+	i, _, err := h.ports.GetOrCreate(id, func() (string, error) {
 		return f(n)
 	})
 	if err != nil {
