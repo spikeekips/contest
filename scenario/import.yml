@@ -57,7 +57,7 @@ expects:
   - condition: |
       {"msg": "contest ready"}
     actions:
-      - type: "run-nodes"
+      - type: "init-nodes"
         args:
           - /cmd
           - init
@@ -77,7 +77,7 @@ expects:
   - condition: |
       {"node": "no0", "x.exit_code": 0, "stderr": true}
     actions:
-      - type: "run-nodes"
+      - type: "init-nodes"
         args:
           - /cmd
           - import

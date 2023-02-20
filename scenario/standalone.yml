@@ -1,12 +1,7 @@
-# import
-# - 2 nodes: no0, no1
-# - no0 does init and run
-# - no0 stores blocks at leas1t 9
-# - no1 will import
+# - no0 nodes does init
+# - no0 enters consensus
 
 ---
-ignore_abnormal_container_exit: true
-
 vars:
   .network_id: mitum contest; Sat 26 Dec 2020 05:29:13 AM KST
 
@@ -50,7 +45,7 @@ designs:
             max_suffrage_size: 99
             suffrage_withdraw_lifespan: 99
   
-  number_nodes: 4
+  number_nodes: 1
 
 expects:
   - condition: |
@@ -85,36 +80,9 @@ expects:
           - node: [no0]
 
   - condition: |
-      {"node": "no0", "x.message": "new block saved", "x.height": {"$gt": 5}}
-    actions:
-      - type: "stop-nodes"
-        range:
-          - node: [no0]
-
-  - condition: |
-      {"node": "no0", "x.exit_code": 0, "stderr": true}
-
-  - condition: |
-      $ find {{ .self.host.Base }}/{{ .self.range.node }}/data | grep map.json | sort | tail -n 1 | awk -F'000/' '{print $NF}' | cut -d '/' -f 1 | sed -e 's/^0*//g'
-    range:
-      - node: [no0]
+      {"x.message": "state switched", "x.next_state.next": "CONSENSUS"}
     registers:
-      - assign: .matched.no0_lastblock
-    actions:
-      - type: "init-nodes"
-        args:
-          - /cmd
-          - import
-          - --design=config.yml
-          - /host/no0/data
-        range:
-          - node: [no1]
+      - assign: .matched.consensus
 
   - condition: |
-      {"node": "no1", "x.message": "block write database merged", "x.height": {{ .matched.no0_lastblock }}}
-
-  - condition: |
-      {"node": "no1", "x.message": "imported BlockMaps validated"}
-
-  - condition: |
-      {"node": "no1", "x.exit_code": 0, "stderr": true}
+      {"_id": {"$gt": "{{ .matched.consensus._id }}" }, "x.height": 3, "x.message": "new block saved"}

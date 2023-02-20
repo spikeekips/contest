@@ -10,6 +10,19 @@ import (
 
 func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction) error {
 	switch action.Type {
+	case "init-nodes":
+		if err := cmd.rangeNodes(ctx, action,
+			func(ctx context.Context, host contest.Host, alias string, args []string) error {
+				log.Debug().
+					Str("host", host.Address()).
+					Str("alias", alias).
+					Strs("args", args).
+					Msg("run init-nodes")
+
+				return cmd.initNode(ctx, host, alias, args)
+			}); err != nil {
+			return errors.WithMessage(err, "failed to init node")
+		}
 	case "run-nodes":
 		if err := cmd.rangeNodes(ctx, action,
 			func(ctx context.Context, host contest.Host, alias string, args []string) error {

@@ -27,6 +27,7 @@ type runCommand struct { //nolint:govet //...
 	NodeBinaries []string      `name:"node-binary" help:"node binary files by architecture"`
 	Mongodb      string        `name:"mongodb" help:"mongodb uri" default:"${mongodb_uri}"`
 	Timeout      time.Duration `name:"timeout" help:"stop after timeout"`
+	PprofSeconds uint          `name:"pprof-seconds" help:"pprof trace seconds" default:"30"`
 	db           *contest.Mongodb
 	basedir      string
 	design       contest.Design
@@ -35,6 +36,7 @@ type runCommand struct { //nolint:govet //...
 	logch        chan contest.LogEntry
 	nodeBinaries map[elf.Machine]string
 	exitch       chan error
+	nodes        util.LockedMap[string, nodeInfo]
 }
 
 func (cmd *runCommand) Run() error {
@@ -89,6 +91,8 @@ func (cmd *runCommand) Run() error {
 
 	_ = w.SetLogging(mlogging)
 
+	cmd.nodes, _ = util.NewLockedMap("", nodeInfo{}, 1)
+
 	go func() {
 		cmd.exitch <- <-w.Wait(ctx)
 	}()
@@ -103,6 +107,8 @@ func (cmd *runCommand) Run() error {
 
 		return time.After(cmd.Timeout)
 	}():
+		cmd.collectPprofs()
+
 		cancel()
 
 		log.Debug().Dur("timeout", cmd.Timeout).Msg("contest will be stopped by timeout")

@@ -79,11 +79,21 @@ func (cmd *runCommand) prepareFlags() error {
 		return errors.Errorf("empty host")
 	}
 
-	log.Debug().Str("id", contestID).Str("basedir", cmd.BaseDir).Func(func(e *zerolog.Event) {
-		for i := range cmd.Hosts {
-			e.Object("host", cmd.Hosts[i])
-		}
-	}).Msg("flags")
+	log.Debug().
+		Str("id", contestID).
+		Str("basedir", cmd.BaseDir).
+		Func(func(e *zerolog.Event) {
+			for i := range cmd.Hosts {
+				e.Object("host", cmd.Hosts[i])
+			}
+		}).
+		Str("design", cmd.Design).
+		Interface("hosts", cmd.Hosts).
+		Strs("node_binaries", cmd.NodeBinaries).
+		Str("mongodb", cmd.Mongodb).
+		Dur("timeout", cmd.Timeout).
+		Uint("pprof_seconds", cmd.PprofSeconds).
+		Msg("flags")
 
 	return nil
 }
