@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 
 	dockerTypes "github.com/docker/docker/api/types"
 	dockerstdcopy "github.com/docker/docker/pkg/stdcopy"
@@ -12,6 +13,20 @@ import (
 	"github.com/pkg/errors"
 	contest "github.com/spikeekips/contest2"
 )
+
+func (*runCommand) openLogFiles(fname string) (io.WriteCloser, *tail.Tail, error) {
+	f, err := os.OpenFile(fname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+
+	t, err := tail.TailFile(fname, tail.Config{Follow: true})
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+
+	return f, t, nil
+}
 
 func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) error {
 	name := containerName(alias)
@@ -21,29 +36,15 @@ func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) erro
 		return errors.Errorf("host not found")
 	}
 
-	openfiles := func(fname string) (io.WriteCloser, *tail.Tail, error) {
-		f, err := os.OpenFile(fname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
-		if err != nil {
-			return nil, nil, errors.WithStack(err)
-		}
-
-		t, err := tail.TailFile(fname, tail.Config{Follow: true})
-		if err != nil {
-			return nil, nil, errors.WithStack(err)
-		}
-
-		return f, t, nil
-	}
-
 	logstdoutfilename := filepath.Join(cmd.basedir, alias+".stdout.log")
 	logstderrfilename := filepath.Join(cmd.basedir, alias+".stderr.log")
 
-	outf, outt, err := openfiles(logstdoutfilename)
+	outf, outt, err := cmd.openLogFiles(logstdoutfilename)
 	if err != nil {
 		return err
 	}
 
-	errf, errt, err := openfiles(logstderrfilename)
+	errf, errt, err := cmd.openLogFiles(logstderrfilename)
 	if err != nil {
 		return err
 	}
@@ -57,17 +58,15 @@ func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) erro
 	}
 
 	go func() {
-		defer func() {
-			_ = r.Close()
-			_ = outf.Close()
-			_ = errf.Close()
-		}()
-
 		if _, err := dockerstdcopy.StdCopy(outf, errf, r); err != nil {
 			if !errors.Is(err, context.Canceled) {
 				log.Debug().Err(err).Str("container", name).Msg("saving container logs stopped")
 			}
 		}
+
+		_ = r.Close()
+		_ = outf.Close()
+		_ = errf.Close()
 	}()
 
 	go cmd.savetail(ctx, alias, outt, false)
@@ -77,13 +76,18 @@ func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) erro
 }
 
 func (cmd *runCommand) savetail(ctx context.Context, alias string, t *tail.Tail, stderr bool) {
+	var stopOnce sync.Once
+
+end:
 	for {
 		select {
 		case <-ctx.Done():
-			return
-		case l := <-t.Lines:
-			if ctx.Err() != nil {
-				break
+			stopOnce.Do(func() {
+				_ = t.Stop()
+			})
+		case l, ok := <-t.Lines:
+			if !ok {
+				break end
 			}
 
 			if l.Err != nil {
@@ -91,7 +95,7 @@ func (cmd *runCommand) savetail(ctx context.Context, alias string, t *tail.Tail,
 			}
 
 			if len(l.Text) < 1 {
-				continue
+				continue end
 			}
 
 			text := l.Text
