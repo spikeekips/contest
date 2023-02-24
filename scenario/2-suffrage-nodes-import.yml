@@ -83,6 +83,25 @@ expects:
     registers:
       - assign: .matched.no0.genesis
 
+  - condition: "{}"
+    actions:
+      - type: "init-nodes"
+        args:
+          - /cmd
+          - storage
+          - import
+          - --do
+          - --design=config.yml
+          - /host/no0/data
+        range:
+          - node: [no1]
+
+  - condition: |
+      {"node": "no1", "x.message": "block write database merged", "x.height": 0}
+
+  - condition: |
+      {"node": "no1", "x.message": "imported blocks validated"}
+
   - condition: |
       {"_id": {"$gt": "{{ .matched.no0.genesis._id }}" }, "node": "no0", "x.exit_code": 0, "stderr": true}
     actions:
@@ -105,17 +124,14 @@ expects:
           - node: [no1]
 
   - condition: |
-      {"node": "no1", "x.message": "state switched", "x.current_state": "BOOTING", "x.next_state.next": "SYNCING"}
+      {"x.message": "state switched", "x.next_state.next": "CONSENSUS"}
     registers:
-      - assign: .matched.no1.stopped_to_syncing
+      - assign: .matched.to_consensus
+    range:
+      - node: [no0, no1]
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no1.stopped_to_syncing._id }}" }, "node": "no1", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
-    registers:
-      - assign: .matched.no1.to_consensus
-
-  - condition: |
-      {"_id": {"$gt": "{{ .matched.no1.to_consensus._id }}" }, "node": "no1", "x.message": "new block saved"}
+      {"_id": {"$gt": "{{ .matched.to_consensus._id }}" }, "x.message": "new block saved"}
     actions:
       - type: "stop-nodes"
         range:

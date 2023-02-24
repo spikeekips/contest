@@ -104,7 +104,9 @@ expects:
       - type: "init-nodes"
         args:
           - /cmd
+          - storage
           - import
+          - --do
           - --design=config.yml
           - /host/no0/data
         range:
@@ -114,7 +116,7 @@ expects:
       {"node": "no1", "x.message": "block write database merged", "x.height": {{ .matched.no0_lastblock }}}
 
   - condition: |
-      {"node": "no1", "x.message": "imported BlockMaps validated"}
+      {"node": "no1", "x.message": "imported blocks validated"}
 
   - condition: |
       {"node": "no1", "x.exit_code": 0, "stderr": true}
