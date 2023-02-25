@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"debug/elf"
-	"fmt"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -14,7 +13,6 @@ import (
 	"github.com/rs/zerolog"
 	contest "github.com/spikeekips/contest2"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/logging"
 	"gopkg.in/yaml.v2"
 )
@@ -218,16 +216,13 @@ func (cmd *runCommand) prepareBase() error {
 		}
 	}
 
-	suffix := fmt.Sprintf("%s-%s-%s", contestID,
-		localtime.Now().Format("20060102T150405.999999999"), filepath.Base(cmd.Design))
-
 	var abs string
 
 	switch i, err := filepath.Abs(cmd.BaseDir); {
 	case err != nil:
 		return e(err, "")
 	default:
-		cmd.basedir = filepath.Join(i, suffix)
+		cmd.basedir = i
 
 		abs = i
 	}
@@ -245,8 +240,6 @@ func (cmd *runCommand) prepareBase() error {
 				h.base = DefaultHostBase
 			}
 		}
-
-		h.base = filepath.Join(h.base, suffix)
 
 		cmd.Hosts[i] = h
 	}
