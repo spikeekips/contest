@@ -15,13 +15,14 @@ type LogEntry interface {
 }
 
 type InternalLogEntry struct {
+	id  string
 	t   time.Time
 	err error
 	msg string
 }
 
 func NewInternalLogEntry(msg string, err error) InternalLogEntry {
-	return InternalLogEntry{t: localtime.Now().UTC(), msg: msg, err: err}
+	return InternalLogEntry{id: util.ULID().String(), t: localtime.Now().UTC(), msg: msg, err: err}
 }
 
 func (InternalLogEntry) X() {}
@@ -35,7 +36,7 @@ type InternalLogEntryBSONMarshaler struct {
 
 func (e InternalLogEntry) MarshalBSON() ([]byte, error) {
 	b, err := bson.Marshal(InternalLogEntryBSONMarshaler{
-		ID:  util.ULID().String(),
+		ID:  e.id,
 		T:   e.t,
 		Msg: e.msg,
 		Err: e.err,
@@ -45,6 +46,7 @@ func (e InternalLogEntry) MarshalBSON() ([]byte, error) {
 }
 
 type NodeLogEntry struct {
+	id     string
 	t      time.Time
 	node   string
 	x      bson.Raw
@@ -69,6 +71,7 @@ func NewNodeLogEntryWithInterface(node string, stderr bool, i interface{}) (entr
 	}
 
 	return NodeLogEntry{
+		id:     util.ULID().String(),
 		t:      localtime.Now().UTC(),
 		node:   node,
 		x:      x,
@@ -97,6 +100,7 @@ func NewNodeLogEntry(node string, stderr bool, b []byte) (entry NodeLogEntry, _ 
 	}
 
 	return NodeLogEntry{
+		id:     util.ULID().String(),
 		t:      localtime.Now().UTC(),
 		node:   node,
 		x:      x,
@@ -116,7 +120,7 @@ type NodeLogEntryBSONMarshaler struct {
 
 func (e NodeLogEntry) MarshalBSON() ([]byte, error) {
 	b, err := bson.Marshal(NodeLogEntryBSONMarshaler{
-		ID:     util.ULID().String(),
+		ID:     e.id,
 		T:      e.t,
 		Node:   e.node,
 		X:      e.x,
