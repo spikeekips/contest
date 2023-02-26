@@ -240,7 +240,7 @@ func (w *WatchLogs) compileConditionQuery(s string, vars *Vars) (ConditionQuery,
 
 		var m bson.M
 		if err := bson.UnmarshalExtJSON([]byte(c), false, &m); err != nil {
-			return nil, errors.WithStack(err)
+			return nil, errors.WithMessagef(err, "failed to unmarshal query, %q", c)
 		}
 
 		for k := range rangevalue {
