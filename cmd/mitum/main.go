@@ -12,6 +12,7 @@ import (
 	launchcmd "github.com/spikeekips/mitum/launch/cmd"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
+	_ "go.uber.org/automaxprocs"
 )
 
 var (

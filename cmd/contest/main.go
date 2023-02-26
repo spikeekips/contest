@@ -10,6 +10,7 @@ import (
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
 	mitumlogging "github.com/spikeekips/mitum/util/logging"
+	_ "go.uber.org/automaxprocs"
 )
 
 var (
