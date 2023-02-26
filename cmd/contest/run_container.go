@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -116,34 +115,12 @@ func (cmd *runCommand) doRunNode( //revive:disable-line:cyclomatic
 
 	nargs := args
 
-	var foundloglevel, foundlogformat, foundlogout bool
-
-	for i := range nargs {
-		switch {
-		case strings.HasPrefix(nargs[i], "--log.level"):
-			foundloglevel = true
-		case strings.HasPrefix(nargs[i], "--log.format"):
-			foundlogformat = true
-		case strings.HasPrefix(nargs[i], "--log.out"):
-			foundlogout = true
-		}
-
-		if foundloglevel && foundlogformat && foundlogout {
-			break
-		}
-	}
-
-	if !foundloglevel {
-		nargs = append(nargs, "--log.level", "debug")
-	}
-
-	if !foundlogformat {
-		nargs = append(nargs, "--log.format", "json")
-	}
-
-	if !foundlogout {
-		nargs = append(nargs, "--log.out", "stdout")
-	}
+	nargs = append(nargs,
+		"--log.level", "debug",
+		"--log.format", "json",
+		"--log.out", "stdout",
+		"--log.out", "/host/"+alias+"-stdout-log.json",
+	)
 
 	name := containerName(alias)
 
@@ -163,8 +140,6 @@ func (cmd *runCommand) doRunNode( //revive:disable-line:cyclomatic
 		return e(err, "")
 	}
 
-	lctx, logcancel := context.WithCancel(ctx)
-
 	if err := host.StartContainer(
 		ctx,
 		hostconfig,
@@ -172,8 +147,6 @@ func (cmd *runCommand) doRunNode( //revive:disable-line:cyclomatic
 		name,
 		func(body container.WaitResponse, err error) {
 			_ = cmd.nodes.RemoveValue(alias)
-
-			logcancel()
 
 			l := log.With().Stringer("logid", util.UUID()).Logger()
 
@@ -249,7 +222,7 @@ func (cmd *runCommand) doRunNode( //revive:disable-line:cyclomatic
 		return e(err, "")
 	}
 
-	if err := cmd.saveContainerLogs(lctx, alias); err != nil {
+	if err := cmd.saveContainerLogs(ctx, alias); err != nil {
 		return e(err, "")
 	}
 

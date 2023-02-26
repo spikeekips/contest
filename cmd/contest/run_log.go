@@ -14,18 +14,46 @@ import (
 	contest "github.com/spikeekips/contest2"
 )
 
-func (*runCommand) openLogFiles(fname string) (io.WriteCloser, *tail.Tail, error) {
-	f, err := os.OpenFile(fname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+type logFile struct {
+	stdout io.WriteCloser
+	stderr io.WriteCloser
+}
+
+func (cmd *runCommand) newLogFile(ctx context.Context, alias string) (io.WriteCloser, io.WriteCloser, error) {
+	lf, _, err := cmd.logFiles.GetOrCreate(alias, func() (*logFile, error) {
+		outfname := filepath.Join(cmd.basedir, alias+".stdout.log")
+		errfname := filepath.Join(cmd.basedir, alias+".stderr.log")
+
+		outf, err := os.OpenFile(outfname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		outt, err := tail.TailFile(outfname, tail.Config{Follow: true})
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		errf, err := os.OpenFile(errfname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		errt, err := tail.TailFile(errfname, tail.Config{Follow: true})
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		go cmd.savetail(ctx, alias, outt, false)
+		go cmd.savetail(ctx, alias, errt, true)
+
+		return &logFile{stdout: outf, stderr: errf}, nil
+	})
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, err
 	}
 
-	t, err := tail.TailFile(fname, tail.Config{Follow: true})
-	if err != nil {
-		return nil, nil, errors.WithStack(err)
-	}
-
-	return f, t, nil
+	return lf.stdout, lf.stderr, nil
 }
 
 func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) error {
@@ -36,15 +64,7 @@ func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) erro
 		return errors.Errorf("host not found")
 	}
 
-	logstdoutfilename := filepath.Join(cmd.basedir, alias+".stdout.log")
-	logstderrfilename := filepath.Join(cmd.basedir, alias+".stderr.log")
-
-	outf, outt, err := cmd.openLogFiles(logstdoutfilename)
-	if err != nil {
-		return err
-	}
-
-	errf, errt, err := cmd.openLogFiles(logstderrfilename)
+	outf, errf, err := cmd.newLogFile(ctx, alias)
 	if err != nil {
 		return err
 	}
@@ -65,12 +85,7 @@ func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) erro
 		}
 
 		_ = r.Close()
-		_ = outf.Close()
-		_ = errf.Close()
 	}()
-
-	go cmd.savetail(ctx, alias, outt, false)
-	go cmd.savetail(ctx, alias, errt, true)
 
 	return nil
 }

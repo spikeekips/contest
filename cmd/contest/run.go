@@ -37,6 +37,7 @@ type runCommand struct { //nolint:govet //...
 	nodeBinaries map[elf.Machine]string
 	exitch       chan error
 	nodes        util.LockedMap[string, nodeInfo]
+	logFiles     util.LockedMap[string, *logFile]
 }
 
 func (cmd *runCommand) Run() error {
@@ -92,6 +93,7 @@ func (cmd *runCommand) Run() error {
 	_ = w.SetLogging(mlogging)
 
 	cmd.nodes, _ = util.NewLockedMap("", nodeInfo{}, 1)
+	cmd.logFiles, _ = util.NewLockedMap("", (*logFile)(nil), 1)
 
 	go func() {
 		cmd.exitch <- <-w.Wait(ctx)
