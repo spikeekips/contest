@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/launch"
+	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
@@ -18,7 +19,7 @@ var PNameFilterNotifyMsgFunc = ps.Name("filter-notify-msg-func")
 func PFilterNotifyMsgFunc(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var designString string
-	var oldfilternotifymsg launch.FilterMemberlistNotifyMsgFunc
+	var oldfilternotifymsg quicmemberlist.FilterNotifyMsgFunc
 
 	if err := util.LoadFromContextOK(ctx,
 		launch.LoggingContextKey, &log,
@@ -60,11 +61,11 @@ func PFilterNotifyMsgFunc(ctx context.Context) (context.Context, error) {
 	log.Log().Debug().Str("script", script).Msg("`filterNotifyMsg` loaded from design")
 
 	return context.WithValue(ctx, launch.FilterMemberlistNotifyMsgFuncContextKey,
-		launch.FilterMemberlistNotifyMsgFunc(filterNotifyMsgFunc(vm, caller, oldfilternotifymsg)),
+		quicmemberlist.FilterNotifyMsgFunc(filterNotifyMsgFunc(vm, caller, oldfilternotifymsg)),
 	), nil
 }
 
-func filterNotifyMsgFunc(vm *goja.Runtime, f goja.Callable, old launch.FilterMemberlistNotifyMsgFunc) launch.FilterMemberlistNotifyMsgFunc {
+func filterNotifyMsgFunc(vm *goja.Runtime, f goja.Callable, old quicmemberlist.FilterNotifyMsgFunc) quicmemberlist.FilterNotifyMsgFunc {
 	var lock sync.Mutex
 
 	return func(i interface{}) (bool, error) {
