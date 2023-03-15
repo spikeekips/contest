@@ -35,7 +35,7 @@ type Mongodb struct {
 }
 
 func NewMongodbFromURI(ctx context.Context, uri string) (*Mongodb, error) {
-	e := util.StringErrorFunc("failed to connect mongodb")
+	e := util.StringErrorFunc("connect mongodb")
 
 	cs, err := connstring.Parse(uri)
 	if err != nil {

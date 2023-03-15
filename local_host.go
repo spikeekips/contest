@@ -62,7 +62,7 @@ func NewLocalHost(base string, dockerhost *url.URL) (*LocalHost, error) {
 	}
 
 	if err := os.MkdirAll(h.base, 0o700); err != nil {
-		return nil, errors.Wrap(err, "failed to create base")
+		return nil, errors.Wrap(err, "create base")
 	}
 
 	return h, nil
@@ -75,13 +75,13 @@ func (h *LocalHost) FreePort(id, network string) (string, error) {
 }
 
 func (h *LocalHost) Upload(s io.Reader, name, dest string, mode os.FileMode) error {
-	e := util.StringErrorFunc("failed to upload")
+	e := util.StringErrorFunc("upload")
 
 	newdest := filepath.Join(h.base, dest)
 
 	n, err := os.OpenFile(newdest, os.O_WRONLY|os.O_CREATE, mode)
 	if err != nil {
-		return e(err, "failed to create upload dest file for %q", newdest)
+		return e(err, "create upload dest file for %q", newdest)
 	}
 
 	defer func() {
@@ -98,7 +98,7 @@ func (h *LocalHost) Upload(s io.Reader, name, dest string, mode os.FileMode) err
 }
 
 func (h *LocalHost) CollectResult(outputfile string) error {
-	e := util.StringErrorFunc("failed to collect result")
+	e := util.StringErrorFunc("collect result")
 
 	o := outputfile
 
@@ -193,7 +193,7 @@ func (h *LocalHost) RunCommand(cmd string) (stdout string, stderr string, ok boo
 func (h *LocalHost) checkArch() error {
 	out, _, err := h.runCommand("uname -sm")
 	if err != nil {
-		return errors.WithMessage(err, "failed to check arch")
+		return errors.WithMessage(err, "check arch")
 	}
 
 	uname := strings.TrimSuffix(out, "\n")
@@ -215,7 +215,7 @@ func (h *LocalHost) runCommand(s string) (stdout string, stderr string, _ error)
 	cmd.Stdout = &bstdout
 	cmd.Stderr = &bstderr
 
-	e := util.StringErrorFunc("failed to run command")
+	e := util.StringErrorFunc("run command")
 
 	err := cmd.Run()
 

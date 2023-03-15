@@ -36,7 +36,7 @@ type HostFlag struct {
 }
 
 func (f *HostFlag) UnmarshalText(b []byte) error {
-	e := util.StringErrorFunc("failed to parse host flag")
+	e := util.StringErrorFunc("parse host flag")
 
 	h, err := url.Parse(string(b))
 	if err != nil {

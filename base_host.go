@@ -68,7 +68,7 @@ func (h *baseHost) Base() string {
 }
 
 func (h *baseHost) Close() error {
-	e := util.StringErrorFunc("failed to close host")
+	e := util.StringErrorFunc("close host")
 
 	_ = h.cleanContainers(false)
 
@@ -80,7 +80,7 @@ func (h *baseHost) Close() error {
 }
 
 func (h *baseHost) cleanContainers(remove bool) error { //revive:disable-line:flag-parameter
-	e := util.StringErrorFunc("failed to clean containers")
+	e := util.StringErrorFunc("clean containers")
 
 	l, err := h.client.ContainerList(context.Background(), dockerTypes.ContainerListOptions{All: true})
 	if err != nil {
@@ -221,7 +221,7 @@ func (h *baseHost) createContainer(
 		name,
 	)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to create container")
+		return "", errors.Wrap(err, "create container")
 	}
 
 	return r.ID, nil
@@ -234,7 +234,7 @@ func (h *baseHost) StartContainer(
 	name string,
 	whenExit func(container.WaitResponse, error),
 ) error {
-	e := util.StringErrorFunc("failed to start container")
+	e := util.StringErrorFunc("start container")
 
 	cid, err := h.findContainer(ctx, name)
 	if err != nil {
@@ -266,7 +266,7 @@ func (h *baseHost) StartContainer(
 }
 
 func (h *baseHost) StopContainer(ctx context.Context, name string, timeout *time.Duration) error {
-	e := util.StringErrorFunc("failed to stop container")
+	e := util.StringErrorFunc("stop container")
 
 	cid, err := h.findContainer(ctx, name)
 	if err != nil {
@@ -294,7 +294,7 @@ func (h *baseHost) StopContainer(ctx context.Context, name string, timeout *time
 }
 
 func (h *baseHost) RemoveContainer(ctx context.Context, name string, options dockerTypes.ContainerRemoveOptions) error {
-	e := util.StringErrorFunc("failed to remove container")
+	e := util.StringErrorFunc("remove container")
 
 	if _, err := h.containers.Remove(name, func(i string, found bool) error {
 		if !found {

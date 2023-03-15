@@ -97,7 +97,7 @@ func (cmd *runCommand) prepareFlags() error {
 }
 
 func (cmd *runCommand) prepareHosts() error {
-	e := util.StringErrorFunc("failed to prepare hosts")
+	e := util.StringErrorFunc("prepare hosts")
 
 	samehost := make([]string, len(cmd.design.Nodes.SameHost))
 	for i := range cmd.design.Nodes.SameHost {
@@ -194,14 +194,14 @@ func (cmd *runCommand) prepareBinaries(host contest.Host) error {
 	}()
 
 	if err := host.Upload(f, "cmd", "cmd", 0o700); err != nil {
-		return errors.WithMessage(err, "failed to upload node binary")
+		return errors.WithMessage(err, "upload node binary")
 	}
 
 	return nil
 }
 
 func (cmd *runCommand) prepareBase() error {
-	e := util.StringErrorFunc("failed to prepare base directory")
+	e := util.StringErrorFunc("prepare base directory")
 
 	switch fi, err := os.Stat(cmd.BaseDir); {
 	case err == nil:
@@ -259,7 +259,7 @@ func (cmd *runCommand) prepareLogs() error {
 }
 
 func (cmd *runCommand) prepareDesign() error {
-	e := util.StringErrorFunc("failed to load design")
+	e := util.StringErrorFunc("load design")
 
 	i, err := os.ReadFile(cmd.Design)
 	if err != nil {
@@ -280,7 +280,7 @@ func (cmd *runCommand) prepareDesign() error {
 }
 
 func (cmd *runCommand) prepareScenario() error { //revive:disable-line:cognitive-complexity,function-length,cyclomatic
-	e := util.StringErrorFunc("failed to load scenario")
+	e := util.StringErrorFunc("load scenario")
 
 	log.Debug().Interface("scenario", cmd.design).Msg("scenario loaded")
 
@@ -355,7 +355,7 @@ func (cmd *runCommand) prepareScenario() error { //revive:disable-line:cognitive
 
 		bc, err := contest.CompileTemplate(cmd.design.Designs.Common, vars, extra)
 		if err != nil {
-			return e(err, "failed to compile common design for %s", alias)
+			return e(err, "compile common design for %s", alias)
 		}
 
 		designs[alias] = strings.TrimSpace(bc) + "\n"
@@ -380,7 +380,7 @@ func (cmd *runCommand) prepareScenario() error { //revive:disable-line:cognitive
 
 		bn, err := contest.CompileTemplate(cmd.design.Designs.Nodes[alias], vars, extra)
 		if err != nil {
-			return e(err, "failed to compile node design for %s", alias)
+			return e(err, "compile node design for %s", alias)
 		}
 
 		designs[alias] += strings.TrimSpace(bn) + "\n"
@@ -390,18 +390,18 @@ func (cmd *runCommand) prepareScenario() error { //revive:disable-line:cognitive
 
 	genesis, err := contest.CompileTemplate(cmd.design.Designs.Genesis, vars, nil)
 	if err != nil {
-		return e(err, "failed to compile genesis design")
+		return e(err, "compile genesis design")
 	}
 
 	genesisfile := filepath.Join(cmd.basedir, "genesis.yml")
 
 	f, err := os.OpenFile(genesisfile, os.O_WRONLY|os.O_CREATE, 0o600)
 	if err != nil {
-		return errors.Wrapf(err, "failed to create genesis file for %q", genesisfile)
+		return errors.Wrapf(err, "create genesis file for %q", genesisfile)
 	}
 
 	if _, err := f.WriteString(genesis); err != nil {
-		return errors.Wrapf(err, "failed to create genesis file for %q", genesisfile)
+		return errors.Wrapf(err, "create genesis file for %q", genesisfile)
 	}
 
 	if err := cmd.hosts.TraverseByHost(func(h contest.Host, _ []string) (bool, error) {
@@ -411,7 +411,7 @@ func (cmd *runCommand) prepareScenario() error { //revive:disable-line:cognitive
 
 		return true, nil
 	}); err != nil {
-		return e(err, "failed to upload genesis.yml")
+		return e(err, "upload genesis.yml")
 	}
 
 	for alias := range designs {
@@ -425,7 +425,7 @@ func (cmd *runCommand) prepareScenario() error { //revive:disable-line:cognitive
 		if err := func() error {
 			f, err := os.OpenFile(configfile, os.O_WRONLY|os.O_CREATE, 0o600)
 			if err != nil {
-				return errors.Wrapf(err, "failed to create node design file for %q", alias)
+				return errors.Wrapf(err, "create node design file for %q", alias)
 			}
 
 			defer func() {
@@ -433,7 +433,7 @@ func (cmd *runCommand) prepareScenario() error { //revive:disable-line:cognitive
 			}()
 
 			if _, err := f.WriteString(designs[alias]); err != nil {
-				return errors.Wrapf(err, "failed to write node design file for %q", alias)
+				return errors.Wrapf(err, "write node design file for %q", alias)
 			}
 
 			return nil
@@ -515,10 +515,10 @@ func (*runCommand) checkImages(client *dockerClient.Client, images ...string) er
 
 		switch found, err := contest.ExistsImage(client, image); {
 		case err != nil:
-			return errors.WithMessagef(err, "failed to check image, %q", image)
+			return errors.WithMessagef(err, "check image, %q", image)
 		case !found:
 			if err := contest.PullImage(client, image); err != nil {
-				return errors.WithMessagef(err, "failed to pull image, %q", image)
+				return errors.WithMessagef(err, "pull image, %q", image)
 			}
 		}
 	}

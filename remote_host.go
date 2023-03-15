@@ -84,7 +84,7 @@ func (h *RemoteHost) FreePort(id, network string) (string, error) {
 }
 
 func (h *RemoteHost) Upload(s io.Reader, name, dest string, mode os.FileMode) error {
-	e := util.StringErrorFunc("failed to upload file")
+	e := util.StringErrorFunc("upload file")
 
 	newdest := filepath.Join(h.base, dest)
 
@@ -167,7 +167,7 @@ func (h *RemoteHost) upload(s io.Reader, _, dest string) error {
 }
 
 func (h *RemoteHost) CollectResult(outputfile string) error {
-	e := util.StringErrorFunc("failed to collect result")
+	e := util.StringErrorFunc("collect result")
 
 	out, err := os.Create(outputfile)
 	if err != nil {
@@ -193,7 +193,7 @@ func (h *RemoteHost) CollectResult(outputfile string) error {
 }
 
 func (h *RemoteHost) Mkdir(dest string, mode os.FileMode) error {
-	e := util.StringErrorFunc("failed to Mkdir")
+	e := util.StringErrorFunc("Mkdir")
 
 	client, err := h.sshClient()
 	if err != nil {
@@ -223,7 +223,7 @@ func (h *RemoteHost) Mkdir(dest string, mode os.FileMode) error {
 }
 
 func (h *RemoteHost) LocalAddr() (addr netip.Addr, _ error) {
-	e := util.StringErrorFunc("failed to get local publish address")
+	e := util.StringErrorFunc("get local publish address")
 
 	out, _, err := h.runCommand(`echo "${SSH_CONNECTION}"`)
 	if err != nil {
@@ -244,7 +244,7 @@ func (h *RemoteHost) LocalAddr() (addr netip.Addr, _ error) {
 }
 
 func (h *RemoteHost) checkEnv() error {
-	e := util.StringErrorFunc("failed to check env")
+	e := util.StringErrorFunc("check env")
 
 	switch s, _, err := h.runCommand("id -u"); {
 	case err != nil:
@@ -271,7 +271,7 @@ func (h *RemoteHost) checkEnv() error {
 }
 
 func (h *RemoteHost) checkBase() error {
-	e := util.StringErrorFunc("failed to check base")
+	e := util.StringErrorFunc("check base")
 
 	client, err := h.sshClient()
 	if err != nil {
@@ -310,7 +310,7 @@ func (h *RemoteHost) sshClient() (*ssh.Client, error) {
 }
 
 func (h *RemoteHost) newSSHClient() (*ssh.Client, error) {
-	e := util.StringErrorFunc("failed to create ssh client")
+	e := util.StringErrorFunc("create ssh client")
 
 	sock, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
 	if err != nil {
@@ -352,7 +352,7 @@ func (h *RemoteHost) newSSHClient() (*ssh.Client, error) {
 }
 
 func (h *RemoteHost) sshSession() (*ssh.Session, error) {
-	e := util.StringErrorFunc("failed to create ssh session")
+	e := util.StringErrorFunc("create ssh session")
 
 	client, err := h.sshClient()
 	if err != nil {
@@ -393,7 +393,7 @@ func (h *RemoteHost) sshSession() (*ssh.Session, error) {
 }
 
 func (h *RemoteHost) remoteFreePort(network string, _ nat.PortMap) (string, error) {
-	e := util.StringErrorFunc("failed to get free port")
+	e := util.StringErrorFunc("get free port")
 
 	session, err := h.sshSession()
 	if err != nil {

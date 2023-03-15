@@ -215,7 +215,7 @@ func (w *WatchLogs) compileConditionQueries(expect ExpectScenario) (queries []Co
 }
 
 func (w *WatchLogs) compileConditionQuery(s string, vars *Vars) (ConditionQuery, error) {
-	e := util.StringErrorFunc("failed to compile condition query")
+	e := util.StringErrorFunc("compile condition query")
 
 	var alias string
 	var rangevalue map[string]interface{}
@@ -240,7 +240,7 @@ func (w *WatchLogs) compileConditionQuery(s string, vars *Vars) (ConditionQuery,
 
 		var m bson.M
 		if err := bson.UnmarshalExtJSON([]byte(c), false, &m); err != nil {
-			return nil, errors.WithMessagef(err, "failed to unmarshal query, %q", c)
+			return nil, errors.WithMessagef(err, "unmarshal query, %q", c)
 		}
 
 		for k := range rangevalue {
@@ -344,7 +344,7 @@ func (w *WatchLogs) register(record interface{}, register ScenarioRegister) erro
 	case register.Format == "json":
 		s, ok := record.(string)
 		if !ok {
-			return errors.Errorf("failed to format json; expected string, but %T", record)
+			return errors.Errorf("format json; expected string, but %T", record)
 		}
 
 		if err := util.UnmarshalJSON([]byte(s), &v); err != nil {

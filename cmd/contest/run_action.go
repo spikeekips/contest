@@ -21,7 +21,7 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 
 				return cmd.initNode(ctx, host, alias, args)
 			}); err != nil {
-			return errors.WithMessage(err, "failed to init node")
+			return errors.WithMessage(err, "init node")
 		}
 	case "run-nodes":
 		if err := cmd.rangeNodes(ctx, action,
@@ -34,7 +34,7 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 
 				return cmd.runNode(ctx, host, alias, args)
 			}); err != nil {
-			return errors.WithMessage(err, "failed to run node")
+			return errors.WithMessage(err, "run node")
 		}
 	case "stop-nodes":
 		if err := cmd.rangeNodes(ctx, action,
@@ -51,7 +51,7 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 
 				return nil
 			}); err != nil {
-			return errors.WithMessage(err, "failed to stop node")
+			return errors.WithMessage(err, "stop node")
 		}
 	case "host-command":
 		if err := cmd.rangeNodes(ctx, action,
@@ -78,7 +78,7 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 				}
 			},
 		); err != nil {
-			return errors.WithMessage(err, "failed to run host command")
+			return errors.WithMessage(err, "run host command")
 		}
 	case "run-redis":
 		err := cmd.hosts.TraverseByHost(func(h contest.Host, _ []string) (bool, error) {
@@ -99,7 +99,7 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 			return true, nil
 		})
 		if err != nil {
-			return errors.WithMessage(err, "failed to run redis")
+			return errors.WithMessage(err, "run redis")
 		}
 	}
 

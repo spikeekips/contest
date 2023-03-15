@@ -55,7 +55,7 @@ func (h *Hosts) New(ho Host) error {
 func (h *Hosts) NewContainer(cid string) (Host, error) {
 	ho := h.assignHost(cid)
 	if ho == nil {
-		return nil, errors.Errorf("failed to find host")
+		return nil, errors.Errorf("find host")
 	}
 
 	h.hostsbycontainer[cid] = ho

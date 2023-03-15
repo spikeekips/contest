@@ -64,20 +64,20 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 
 	if cmd.Statsviz {
 		if err := cmd.enableStatsviz(); err != nil {
-			return errors.Wrap(err, "failed to enable statsviz")
+			return errors.Wrap(err, "enable statsviz")
 		}
 	}
 
 	if cmd.Pprof {
 		if err := cmd.enablePprof(); err != nil {
-			return errors.Wrap(err, "failed to enable pprof")
+			return errors.Wrap(err, "enable pprof")
 		}
 	}
 
 	if cmd.mux != nil {
 		addr, err := net.ResolveTCPAddr("tcp", cmd.DebugHTTP)
 		if err != nil {
-			return errors.Wrap(err, "failed to parse --debug-http")
+			return errors.Wrap(err, "parse --debug-http")
 		}
 
 		go func() {
@@ -257,7 +257,7 @@ func (cmd *RunCommand) enableStatsviz() error {
 	}
 
 	if err := statsviz.Register(cmd.mux); err != nil {
-		return errors.Wrap(err, "failed to register statsviz for http-state")
+		return errors.Wrap(err, "register statsviz for http-state")
 	}
 
 	cmd.log.Debug().Msg("statsviz registered")

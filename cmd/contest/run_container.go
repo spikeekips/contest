@@ -38,7 +38,7 @@ func (*runCommand) startRedisContainer(
 	h contest.Host,
 	whenExit func(container.WaitResponse, error),
 ) error {
-	e := util.StringErrorFunc("failed to start container")
+	e := util.StringErrorFunc("start container")
 
 	port, err := h.FreePort("database-redis", "tcp")
 	if err != nil {
@@ -111,7 +111,7 @@ func (cmd *runCommand) runNode(
 func (cmd *runCommand) doRunNode( //revive:disable-line:cyclomatic
 	ctx context.Context, host contest.Host, alias string, args []string,
 ) error {
-	e := util.StringErrorFunc("failed to run node")
+	e := util.StringErrorFunc("run node")
 
 	nargs := args
 
@@ -230,7 +230,7 @@ func (cmd *runCommand) doRunNode( //revive:disable-line:cyclomatic
 }
 
 func (cmd *runCommand) stopNodes(ctx context.Context, alias string, _ []string) error {
-	e := util.StringErrorFunc("failed to stop node")
+	e := util.StringErrorFunc("stop node")
 
 	name := containerName(alias)
 
