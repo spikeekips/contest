@@ -7,6 +7,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/pkg/errors"
+	contest "github.com/spikeekips/contest2"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/launch"
 	launchcmd "github.com/spikeekips/mitum/launch/cmd"
@@ -16,10 +17,13 @@ import (
 )
 
 var (
-	Version   = "v0.0.1"
-	BuildTime = "-"
-	GitBranch = "-"
-	GitCommit = "-"
+	Version        = "v0.0.1"
+	BuildTime      = "-"
+	GitBranch      = "-"
+	GitCommit      = "-"
+	MitumVersion   = "v0.0.1"
+	MitumGitBranch = "-"
+	MitumGitCommit = "-"
 )
 
 var CLI struct { //nolint:govet //...
@@ -52,7 +56,11 @@ var flagDefaults = kong.Vars{
 func main() {
 	kctx := kong.Parse(&CLI, flagDefaults)
 
-	bi, err := util.ParseBuildInfo(Version, GitBranch, GitCommit, BuildTime)
+	bi, err := contest.ParseBuildInfo(
+		Version, GitBranch, GitCommit,
+		MitumVersion, MitumGitBranch, MitumGitCommit,
+		BuildTime,
+	)
 	if err != nil {
 		kctx.FatalIfErrorf(err)
 	}

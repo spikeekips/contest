@@ -7,17 +7,20 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+	contest "github.com/spikeekips/contest2"
 	"github.com/spikeekips/mitum/launch"
-	"github.com/spikeekips/mitum/util"
 	mitumlogging "github.com/spikeekips/mitum/util/logging"
 	_ "go.uber.org/automaxprocs"
 )
 
 var (
-	Version   = "v0.0.1"
-	BuildTime = "-"
-	GitBranch = "-"
-	GitCommit = "-"
+	Version        = "v0.0.1"
+	BuildTime      = "-"
+	GitBranch      = "-"
+	GitCommit      = "-"
+	MitumVersion   = "v0.0.1"
+	MitumGitBranch = "-"
+	MitumGitCommit = "-"
 )
 
 var (
@@ -37,17 +40,21 @@ var kongOptions = []kong.Option{
 }
 
 func main() {
-	//revive:disable:nested-structs
 	var cli struct { //nolint:govet //...
+		//revive:disable:nested-structs
 		launch.LoggingFlags `embed:"" prefix:"log."`
 		Run                 runCommand `cmd:"" help:"run contest"`
 		Version             struct{}   `cmd:"" help:"version"`
+		//revive:enable:nested-structs
 	}
-	//revive:enable:nested-structs
 
 	kctx := kong.Parse(&cli, kongOptions...)
 
-	bi, err := util.ParseBuildInfo(Version, GitBranch, GitCommit, BuildTime)
+	bi, err := contest.ParseBuildInfo(
+		Version, GitBranch, GitCommit,
+		MitumVersion, MitumGitBranch, MitumGitCommit,
+		BuildTime,
+	)
 	if err != nil {
 		kctx.FatalIfErrorf(err)
 	}
