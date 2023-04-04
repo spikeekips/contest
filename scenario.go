@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -118,14 +119,32 @@ func (s NodeDesigns) AllNodes() []string {
 	return nodes
 }
 
+type IfConditionFailedType string
+
+var (
+	IfConditionFailedNothing     IfConditionFailedType
+	IfConditionFailedStopContest IfConditionFailedType = "stop-contest"
+)
+
+func (i IfConditionFailedType) IsValid([]byte) error {
+	switch i {
+	case IfConditionFailedNothing,
+		IfConditionFailedStopContest:
+		return nil
+	default:
+		return errors.Errorf("unknown ifConditionFailedType, %q", i)
+	}
+}
+
 type ExpectScenario struct {
-	Condition   string                `yaml:"condition"`
-	Log         string                `yaml:"log"`
-	Range       []map[string][]string `yaml:"range"`
-	Actions     []ScenarioAction      `yaml:"actions"`
-	Registers   []ScenarioRegister    `yaml:"registers"`
-	Interval    time.Duration         `yaml:"interval"`
-	InitialWait time.Duration         `yaml:"initial_wait"`
+	Condition         string                `yaml:"condition"`
+	Log               string                `yaml:"log"`
+	IfConditionFailed IfConditionFailedType `yaml:"if_condition_failed"`
+	Range             []map[string][]string `yaml:"range"`
+	Actions           []ScenarioAction      `yaml:"actions"`
+	Registers         []ScenarioRegister    `yaml:"registers"`
+	Interval          time.Duration         `yaml:"interval"`
+	InitialWait       time.Duration         `yaml:"initial_wait"`
 }
 
 func (s ExpectScenario) IsValid(b []byte) error {
@@ -157,6 +176,10 @@ func (s ExpectScenario) IsValid(b []byte) error {
 
 	if s.InitialWait < 0 {
 		return e(nil, "under zero initial_wait")
+	}
+
+	if err := s.IfConditionFailed.IsValid(nil); err != nil {
+		return e(err, "")
 	}
 
 	return nil
@@ -196,9 +219,11 @@ func (s ExpectScenario) RangeValues() []map[string]interface{} {
 
 func (s ExpectScenario) Compile(vars *Vars) (newexpect ExpectScenario, err error) {
 	newexpect.Condition = s.Condition
+	newexpect.Log = s.Log
 	newexpect.Actions = make([]ScenarioAction, len(s.Actions))
 	newexpect.Interval = s.Interval
-	newexpect.Log = s.Log
+	newexpect.InitialWait = s.InitialWait
+	newexpect.IfConditionFailed = s.IfConditionFailed
 
 	copy(newexpect.Actions, s.Actions)
 

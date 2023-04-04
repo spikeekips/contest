@@ -2,7 +2,7 @@
 # - 2 nodes: no0, no1
 # - no1 is not in suffrage
 # - no0 does init and run
-# - no0 stores blocks at leas1t 9
+# - no0 stores blocks at least 9
 # - no1 will sync
 
 ---
@@ -51,7 +51,7 @@ designs:
             max_suffrage_size: 99
             suffrage_withdraw_lifespan: 99
   
-  number_nodes: 4
+  number_nodes: 2
   nodes:
     no1: |
       sync_sources:
@@ -90,6 +90,7 @@ expects:
           - /cmd
           - run
           - --design=config.yml
+          - --dev.allow-consensus
         range:
           - node: [no0]
 
@@ -108,8 +109,8 @@ expects:
           - /cmd
           - run
           - --design=config.yml
-          - --hold
-          - ""
+          - --hold=
+          - --dev.allow-consensus
         range:
           - node: [no0]
 
@@ -127,6 +128,7 @@ expects:
           - --design=config.yml
           - --discovery
           - "{{ .nodes.no0.network.publish }}#tls_insecure"
+          - --dev.allow-consensus
         range:
           - node: [no1]
 
@@ -137,11 +139,13 @@ expects:
       {"node": "no1", "x.message": "syncer finished", "x.height": { "$gte": {{ .matched.no0_lastblock }} }}
 
   - condition: |
-       $ set -e; {{ hostFile .self.host "cmd" }} network client --log.level=trace '{"key":"suffrage","_hint":"state-header-v0.0.1"}' "{{ .network_id }}" '{{ .nodes.no1.network.publish }}#tls_insecure' | jq -e -c '(.value.nodes | length == 1) and (.value.nodes[0] | .address == "{{ .nodes.no0.address }}" and .publickey == "{{ .nodes.no0.publickey }}")'
+       $ set -e; {{ hostFile .self.host "cmd" }} network client state --log.level=trace "{{ .network_id }}" '{{ .nodes.no1.network.publish }}#tls_insecure' 'suffrage' | \
+           jq -e -c '(.value.nodes | length == 1) and (.value.nodes[0] | .address == "{{ .nodes.no0.address }}" and .publickey == "{{ .nodes.no0.publickey }}")'
     range:
       - node: [no1]
 
   - condition: |
-       $ {{ hostFile .self.host "cmd" }} network client --log.level=trace '{"_hint":"last-blockmap-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no1.network.publish }}#tls_insecure" | jq -e -c '.manifest | .height >= {{ .matched.no0_lastblock }}'
+       $ {{ hostFile .self.host "cmd" }} network client last-blockmap --log.level=trace "{{ .network_id }}" "{{ .nodes.no1.network.publish }}#tls_insecure" | \
+           jq -e -c '.manifest | .height >= {{ .matched.no0_lastblock }}'
     range:
       - node: [no1]

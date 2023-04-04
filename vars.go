@@ -269,6 +269,18 @@ func (vs *Vars) baseFuncMap() template.FuncMap {
 
 			return i
 		},
+		"getOrCreateVar": func(keys string, value interface{}) interface{} {
+			vs.Lock()
+			defer vs.Unlock()
+
+			if i, found := getVar(vs.m, keys); found {
+				return i
+			}
+
+			_ = setVar(vs.m, keys, value)
+
+			return value
+		},
 		"setVar": func(keys string, value interface{}) string {
 			vs.Lock()
 			defer vs.Unlock()

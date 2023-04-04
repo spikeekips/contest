@@ -86,6 +86,7 @@ expects:
           - /cmd
           - run
           - --design=config.yml
+          - --dev.allow-consensus
         range:
           - node: [no0]
 
@@ -96,6 +97,7 @@ expects:
           - --design=config.yml
           - --discovery
           - "{{ .nodes.no0.network.publish }}#tls_insecure"
+          - --dev.allow-consensus
         range:
           - node: [no1]
 
@@ -112,7 +114,10 @@ expects:
       - type: "host-command"
         args:
           - |
-            $ op="{{ hostBase .self.host }}/{{ uuid }}.json"; echo '{ "fact": { "node": "{{ .nodes.no1.address }}", "_hint": "suffrage-disjoin-fact-v0.0.1", "start": 1 }, "_hint": "suffrage-disjoin-operation-v0.0.1" }' | {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no1.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no1.address }}" --token findme > $op; {{ hostFile .self.host "cmd" }} network client --log.level=trace '{"_hint":"send-operation-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" --body="$op"; {{ hostFile .self.host "cmd" }} network client --log.level=trace '{"_hint":"send-operation-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" --body="$op"
+            $ op="{{ hostBase .self.host }}/{{ uuid }}.json"; echo '{ "fact": { "node": "{{ .nodes.no1.address }}", "_hint": "suffrage-disjoin-fact-v0.0.1", "start": 1 }, "_hint": "suffrage-disjoin-operation-v0.0.1" }' | \
+                {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no1.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no1.address }}" --token findme > $op; \
+                {{ hostFile .self.host "cmd" }} network client send-operation --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" --body="$op"; \
+                {{ hostFile .self.host "cmd" }} network client send-operation --log.level=trace "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" --body="$op"
         range:
           - node: [no0]
 
@@ -124,7 +129,7 @@ expects:
       - type: "host-command"
         args:
           - |
-            $ {{ hostFile .self.host "cmd" }} network client --log.level=trace '{"key":"suffrage","_hint":"state-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure"
+            $ {{ hostFile .self.host "cmd" }} network client state --log.level=trace "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" 'suffrage'
         range:
           - node: [no0]
 

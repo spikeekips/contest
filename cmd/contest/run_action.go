@@ -10,6 +10,16 @@ import (
 
 func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction) error {
 	switch action.Type {
+	case "stop-contest":
+		var err error
+
+		if len(action.Args) > 0 {
+			err = errors.Errorf(action.Args[0])
+		}
+
+		cmd.exitch <- err
+
+		return nil
 	case "init-nodes":
 		if err := cmd.rangeNodes(ctx, action,
 			func(ctx context.Context, host contest.Host, alias string, args []string) error {

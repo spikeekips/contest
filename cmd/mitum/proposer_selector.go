@@ -19,14 +19,14 @@ type ProposerSelector struct {
 	f                func(context.Context, base.Point, []base.Node) (base.Node, error)
 }
 
-func (p ProposerSelector) Select(ctx context.Context, point base.Point, nodes []base.Node) (base.Node, error) {
+func (p ProposerSelector) Select(ctx context.Context, point base.Point, nodes []base.Node, previousBlock util.Hash) (base.Node, error) {
 	switch n, err := p.f(ctx, point, nodes); {
 	case err != nil:
 		return nil, err
 	case n != nil:
 		return n, nil
 	default:
-		return p.proposerSelector.Select(ctx, point, nodes)
+		return p.proposerSelector.Select(ctx, point, nodes, previousBlock)
 	}
 }
 

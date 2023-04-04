@@ -297,7 +297,7 @@ func (w *WatchLogs) evaluate(
 	case err != nil:
 		return left, false, errors.WithStack(err)
 	case !found:
-		return left, false, nil
+		return left, false, w.ifConditionFailed(ctx, current)
 	default:
 		ok = found
 
@@ -394,6 +394,16 @@ end:
 	}
 }
 
+func (w *WatchLogs) ifConditionFailed(ctx context.Context, scenario ExpectScenario) error {
+	switch scenario.IfConditionFailed {
+	case IfConditionFailedNothing:
+	case IfConditionFailedStopContest:
+		return w.actionFunc(ctx, ScenarioAction{Type: "stop-contest"})
+	}
+
+	return nil
+}
+
 func (w *WatchLogs) expectLog(s string) {
 	w.Log().Info().Msgf("expect log: %s", s)
 }
@@ -430,7 +440,7 @@ func (c HostCommandConditionQuery) String() string {
 func (c HostCommandConditionQuery) Find(context.Context) (out interface{}, ok bool, _ error) {
 	stdout, _, ok, err := c.host.RunCommand(c.cmd)
 	if err != nil {
-		return nil, false, nil
+		return nil, false, err
 	}
 
 	return strings.TrimRight(stdout, "\n"), ok, nil

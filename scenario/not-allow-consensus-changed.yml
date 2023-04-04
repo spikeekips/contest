@@ -1,17 +1,10 @@
-# 4 nodes can do consensus
-# - 4 nodes: no0, no1, no2, no3
-# - all nodes are in suffrage from genesis
-# - threshold is 100
-# - no0 does init
-# - all nodes start
-# - all nodes will be in consensus
-# - no3 stops
-# - no3 tries to join
-# - no3 will be in consensus
+# - no0 and no3 has same address and keys
+# - no0, no1, no2, no3 enter consensus
+# - no3 set 'not-allow' consensus by network client
+# - no3 enters syncing state
 
 ---
 ignore_abnormal_container_exit: true
-
 vars:
   .network_id: mitum contest; Sat 26 Dec 2020 05:29:13 AM KST
 
@@ -30,8 +23,6 @@ designs:
     storage:
       base: /data
     ballot-stuck-resolver: dummy
-    parameters:
-      threshold: 100
 
   genesis: |
       facts:
@@ -60,7 +51,7 @@ designs:
               limit: 1 
             max_suffrage_size: 99
             suffrage_withdraw_lifespan: 99
-
+  
   number_nodes: 4
   nodes:
     no0: |
@@ -115,11 +106,9 @@ expects:
         "x.blockmap.node": "{{ .nodes.no0.address }}",
         "x.blockmap.signer": "{{ .nodes.no0.publickey }}"
       }
-    registers:
-      - assign: .matched.no0.genesis
-
+  
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no0.genesis._id }}" }, "node": "no0", "x.exit_code": 0, "stderr": true}
+      {"node": "no0", "x.exit_code": 0, "stderr": true}
     actions:
       - type: "run-nodes"
         args:
@@ -142,83 +131,79 @@ expects:
           - node: [no1, no2, no3]
 
   - condition: |
-      {"x.message": "state switched", "x.current_state": "BOOTING", "x.next_state.next": "SYNCING"}
-    range:
-      - node: [no1, no2, no3]
-
-  - condition: |
-      {"node": "no1", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
-
-  - condition: |
-      {"node": "no3", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
+      {"x.message": "state switched", "x.next_state.next": "CONSENSUS"}
     registers:
-      - assign: .matched.no3.joining_to_consensus
+      - assign: .matched.consensus
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no3.joining_to_consensus._id }}" }, "x.message": "new block saved"}
+      {"_id": {"$gt": "{{ .matched.consensus._id }}" }, "x.height": 2, "x.message": "new block saved"}
+    range:
+      - node: [no0, no1, no2, no3]
+    registers:
+      - assign: .matched.new_block
+
+  - condition: |
+      {"x.message": "state switched", "x.next_state.next": "CONSENSUS"}
+    registers:
+      - assign: .matched.consensus
+    range:
+      - node: [no0, no1, no2, no3]
+
+  - log: set 'not-allow' for no3
+
+  - condition: |
+      $ {{ hostFile .self.host "cmd" }} network client set-allow-consensus \
+          --log.format=json \
+          --log.level=trace \
+          "{{ .nodes.no3.privatekey }}" "not-allow" "{{ .network_id }}" "{{ .nodes.no3.network.publish}}#tls_insecure"
+    range:
+      - node: [no3]
+    if_condition_failed: "stop-contest"
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.consensus._id}}" }, "x.message": "state switched", "x.current_state": "CONSENSUS", "x.next_state.next": "SYNCING"}
+    registers:
+      - assign: .matched.no3_syncing
+    range:
+      - node: [no3]
+
+  - log: check no3 left
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.consensus._id }}" }, "x.member.meta.address": "{{ .nodes.no3.address }}", "x.member.meta.publickey": "{{ .nodes.no3.publickey }}", "x.message": "member left"}
     range:
       - node: [no0, no1, no2, no3]
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no3.joining_to_consensus._id }}" }, "node": "no3", "x.message": "new block saved"}
+      {"x.height": {"$gte": {{ addInt .matched.new_block.x.height 9 }} }, "x.message": "new block saved"}
+    range:
+      - node: [no0, no1, no2, no3]
     registers:
-      - assign: .matched.no3.stopped
-    actions:
-      - type: "stop-nodes"
-        range:
-          - node: [no3]
-
-  - condition: "{}"
-    initial_wait: 30s
-    actions:
-      - type: "run-nodes"
-        args:
-          - /cmd
-          - run
-          - --design=config.yml
-          - --discovery
-          - "{{ .nodes.no0.network.publish }}#tls_insecure"
-          - --dev.allow-consensus
-        range:
-          - node: [no3]
+      - assign: .matched.new_block_after_no3_syncing
+  
+  - log: set 'allow' for no3
+  
+  - condition: |
+      $ {{ hostFile .self.host "cmd" }} network client set-allow-consensus \
+          --log.format=json \
+          --log.level=trace \
+          "{{ .nodes.no3.privatekey }}" "allow" "{{ .network_id }}" "{{ .nodes.no3.network.publish}}#tls_insecure"
+    range:
+      - node: [no3]
+    if_condition_failed: "stop-contest"
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no3.stopped._id }}" }, "node": "no3", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
-    registers:
-      - assign: .matched.no3.rejoining_to_consensus
+      {"_id": {"$gt": "{{ .matched.new_block_after_no3_syncing._id}}" }, "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
+    range:
+      - node: [no3]
 
+  - log: check no3 joined again
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no3.rejoining_to_consensus._id }}" }, "node": "no3", "x.message": "new block saved"}
-    registers:
-      - assign: .matched.no3.new_block_after_rejoined
-
-  - condition: |
-      {"x.height": { "$gt": {{ addInt .matched.no3.new_block_after_rejoined.x.height 3 }} }, "x.message": "new block saved"}
+      {"_id": {"$gt": "{{ .matched.new_block_after_no3_syncing._id }}" }, "x.member.meta.address": "{{ .nodes.no3.address }}", "x.member.meta.publickey": "{{ .nodes.no3.publickey }}", "x.message": "member joined"}
     range:
       - node: [no0, no1, no2, no3]
 
   - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" | \
-        jq -e -c 'select(.consensus.state == "CONSENSUS")'
-    interval: 2s
+      {"x.height": {"$gte": {{ addInt .matched.new_block_after_no3_syncing.x.height 9 }} }, "x.message": "new block saved"}
     range:
-      - node: [no0]
-  - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" | \
-        jq -e -c 'select(.consensus.state == "CONSENSUS")'
-    interval: 2s
-    range:
-      - node: [no0]
-  - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" | \
-        jq -e -c 'select(.consensus.state == "CONSENSUS")'
-    interval: 2s
-    range:
-      - node: [no0]
-  - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no3.network.publish}}#tls_insecure" | \
-        jq -e -c 'select(.consensus.state == "CONSENSUS")'
-    interval: 2s
-    range:
-      - node: [no0]
+      - node: [no0, no1, no2, no3]
 

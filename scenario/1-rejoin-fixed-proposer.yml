@@ -150,6 +150,7 @@ expects:
           - /cmd
           - run
           - --design=config.yml
+          - --dev.allow-consensus
         range:
           - node: [no0]
 
@@ -160,6 +161,7 @@ expects:
           - --design=config.yml
           - --discovery
           - "{{ .nodes.no0.network.publish }}#tls_insecure"
+          - --dev.allow-consensus
         range:
           - node: [no1, no2, no3]
 
@@ -206,6 +208,7 @@ expects:
           - --design=config.yml
           - --discovery
           - "{{ .nodes.no0.network.publish }}#tls_insecure"
+          - --dev.allow-consensus
         range:
           - node: [no3]
 

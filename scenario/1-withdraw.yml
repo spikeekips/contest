@@ -103,6 +103,7 @@ expects:
           - /cmd
           - run
           - --design=config.yml
+          - --dev.allow-consensus
         range:
           - node: [no0]
 
@@ -113,6 +114,7 @@ expects:
           - --design=config.yml
           - --discovery
           - "{{ .nodes.no0.network.publish }}#tls_insecure"
+          - --dev.allow-consensus
         range:
           - node: [no1, no2]
 
@@ -133,7 +135,7 @@ expects:
       - assign: .matched.no2.joining_to_consensus
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.no2.joining_to_consensus._id }}" }, "node": "no2", "x.message": "new block saved"}
+      {"_id": {"$gt": "{{ .matched.no2.joining_to_consensus._id }}" }, "x.height": {"$gt": 0}, "node": "no2", "x.message": "new block saved"}
     registers:
       - assign: .matched.no2.new_block_saved
 
@@ -160,14 +162,14 @@ expects:
             }' | \
              {{ hostFile .self.host "cmd" }} key sign {{ .nodes.no0.privatekey }} "{{ .network_id }}" - --node="{{ .nodes.no0.address}}" | \
              {{ hostFile .self.host "cmd" }} key sign {{ .nodes.no1.privatekey }} "{{ .network_id }}" - --node="{{ .nodes.no1.address}}" | \
-             {{ hostFile .self.host "cmd" }} network client --log.level=trace '{"_hint":"send-operation-header-v0.0.1"}' "{{ .network_id }}" --body=-  "{{ .nodes.no1.network.publish}}#tls_insecure"
+             {{ hostFile .self.host "cmd" }} network client send-operation --log.level=trace "{{ .network_id }}" --body=-  "{{ .nodes.no1.network.publish}}#tls_insecure"
         range:
           - node: [no1]
 
   - condition: |
       $ state="{{ hostBase .self.host }}/withdraw-state.json"; \
-        {{ hostFile .self.host "cmd" }} network client --log.level=trace \
-             '{"key":"suffrage","_hint":"state-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" > $state && \
+        {{ hostFile .self.host "cmd" }} network client state --log.level=trace \
+             "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" 'suffrage' > $state && \
         cat $state && \
         cat $state | jq -e -c '(.value.nodes | length) == 2' && \
         cat $state | jq -e -c '.value.nodes[] | select( (.address == "{{ .nodes.no0.address }}") and (.publickey == "{{ .nodes.no0.publickey }}"))' && \
@@ -191,21 +193,21 @@ expects:
       - assign: .matched.new_block_saved_after_withdraw
 
   - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client --log.level=trace '{"_hint":"node-info-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" | \
+      $ {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" | \
         jq -e -c 'select(.consensus.state == "CONSENSUS")'
     interval: 2s
     range:
       - node: [no1]
 
   - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client --log.level=trace '{"_hint":"node-info-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" | \
+      $ {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" | \
         jq -e -c 'select(.consensus.state == "CONSENSUS")'
     interval: 2s
     range:
       - node: [no1]
 
   - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client --log.level=trace '{"_hint":"node-info-header-v0.0.1"}' "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" | \
+      $ {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" | \
         jq -e -c 'select(.consensus.state == "SYNCING")'
     interval: 2s
     range:

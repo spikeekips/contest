@@ -81,6 +81,7 @@ expects:
           - /cmd
           - run
           - --design=config.yml
+          - --dev.allow-consensus
         range:
           - node: [no0]
 
