@@ -83,7 +83,7 @@ designs:
               _hint: fixed-suffrage-candidate-limiter-rule-v0.0.1
               limit: 1 
             max_suffrage_size: 99
-            suffrage_withdraw_lifespan: 99
+            suffrage_expel_lifespan: 99
 
   number_nodes: 4
   nodes:

@@ -7,7 +7,7 @@
 # - all nodes will be in consensus
 # - no0, no1 blocks the ballots, which is height=2, round=0 and node=no2
 # - consensus stuck
-# - no0 and no1 withdraw no2
+# - no0 and no1 expel no2
 # - no2 be removed from suffrage of no0 and no1
 
 ---
@@ -58,7 +58,7 @@ designs:
               _hint: fixed-suffrage-candidate-limiter-rule-v0.0.1
               limit: 1 
             max_suffrage_size: 99
-            suffrage_withdraw_lifespan: 99
+            suffrage_expel_lifespan: 99
 
   number_nodes: 3
   nodes:
@@ -247,14 +247,14 @@ expects:
       - node: [no0, no1]
 
   - condition: |
-      {"x.voteproof.point.height": 2, "x.voteproof.point.round": {{ .matched.ballot_stuck.x.point.round }}, "x.voteproof.point.stage": "INIT", "x.voteproof._hint": {"$regex": "^init-stuck-voteproof-"}, "x.voteproof.withdraws": {"$size": 1}, "x.voteproof.withdraws.fact.node": "{{ .nodes.no2.address }}", "x.message": "new voteproof"}
+      {"x.voteproof.point.height": 2, "x.voteproof.point.round": {{ .matched.ballot_stuck.x.point.round }}, "x.voteproof.point.stage": "INIT", "x.voteproof._hint": {"$regex": "^init-stuck-voteproof-"}, "x.voteproof.expels": {"$size": 1}, "x.voteproof.expels.fact.node": "{{ .nodes.no2.address }}", "x.message": "new voteproof"}
     range:
       - node: [no0, no1]
 
   - log: ballot stuck resolved
 
   - condition: |
-      $ state="{{ hostBase .self.host }}/withdraw-state.json"; \
+      $ state="{{ hostBase .self.host }}/expel-state.json"; \
         {{ hostFile .self.host "cmd" }} network client state --log.level=trace \
              "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" 'suffrage' > $state && \
         cat $state && \
@@ -266,7 +266,7 @@ expects:
     interval: 2s
 
   - condition: |
-      $ cat "{{ hostBase .self.host }}/withdraw-state.json" | jq -e -c '.height'
+      $ cat "{{ hostBase .self.host }}/expel-state.json" | jq -e -c '.height'
     range:
       - node: [no1]
     registers:

@@ -4,7 +4,7 @@
 # - no0 does init
 # - all nodes start
 # - all nodes will be in consensus
-# - no0 and no1 withdraw no2
+# - no0 and no1 expel no2
 # - no2 be removed from suffrage of no0 and no1
 
 ---
@@ -52,7 +52,7 @@ designs:
               _hint: fixed-suffrage-candidate-limiter-rule-v0.0.1
               limit: 1 
             max_suffrage_size: 99
-            suffrage_withdraw_lifespan: 99
+            suffrage_expel_lifespan: 99
 
   number_nodes: 3
   nodes:
@@ -143,7 +143,7 @@ expects:
       {"x.height": {"$gt": {{ .matched.no2.new_block_saved.x.height }} }, "x.message": "new block saved"}
     range:
       - node: [no0, no1, no2]
-    actions: # send suffrage-withdraw operation
+    actions: # send suffrage-expel operation
       - type: "host-command"
         args:
           - |
@@ -154,11 +154,11 @@ expects:
                 "reason": "disconnected",
                 "hash": "BDxCNP32V9qsSSCC2pFiwd4rHKhYki6EQYpD6f5LnKY4",
                 "token": "NzM4ZmFhYjgtMWM0Zi00NmE3LWJhYzctNjg2Mjc0MzlhMjA4c2FzAAAAAAAAACEAAAAAAAAALA==",
-                "_hint": "suffrage-withdraw-fact-v0.0.1",
+                "_hint": "suffrage-expel-fact-v0.0.1",
                 "start": {{ .matched.no2.new_block_saved.x.height }},
                 "end": 90
               },
-              "_hint": "suffrage-withdraw-operation-v0.0.1"
+              "_hint": "suffrage-expel-operation-v0.0.1"
             }' | \
              {{ hostFile .self.host "cmd" }} key sign {{ .nodes.no0.privatekey }} "{{ .network_id }}" - --node="{{ .nodes.no0.address}}" | \
              {{ hostFile .self.host "cmd" }} key sign {{ .nodes.no1.privatekey }} "{{ .network_id }}" - --node="{{ .nodes.no1.address}}" | \
@@ -167,7 +167,7 @@ expects:
           - node: [no1]
 
   - condition: |
-      $ state="{{ hostBase .self.host }}/withdraw-state.json"; \
+      $ state="{{ hostBase .self.host }}/expel-state.json"; \
         {{ hostFile .self.host "cmd" }} network client state --log.level=trace \
              "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" 'suffrage' > $state && \
         cat $state && \
@@ -179,7 +179,7 @@ expects:
     interval: 2s
 
   - condition: |
-      $ cat "{{ hostBase .self.host }}/withdraw-state.json" | jq -e -c '.height'
+      $ cat "{{ hostBase .self.host }}/expel-state.json" | jq -e -c '.height'
     range:
       - node: [no1]
     registers:
@@ -190,7 +190,7 @@ expects:
     range:
       - node: [no0, no1]
     registers:
-      - assign: .matched.new_block_saved_after_withdraw
+      - assign: .matched.new_block_saved_after_expel
 
   - condition: |
       $ {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" | \
