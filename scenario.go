@@ -137,7 +137,7 @@ func (i IfConditionFailedType) IsValid([]byte) error {
 }
 
 type ExpectScenario struct {
-	Condition         string                `yaml:"condition"`
+	Condition         interface{}           `yaml:"condition"`
 	Log               string                `yaml:"log"`
 	IfConditionFailed IfConditionFailedType `yaml:"if_condition_failed"`
 	Range             []map[string][]string `yaml:"range"`
@@ -154,8 +154,12 @@ func (s ExpectScenario) IsValid(b []byte) error {
 		return nil
 	}
 
-	if len(s.Condition) < 1 {
+	if s.Condition == nil {
 		return e(nil, "empty condition")
+	}
+
+	if err := s.isValidCondition(); err != nil {
+		return e(err, "")
 	}
 
 	for i := range s.Actions {
@@ -263,6 +267,17 @@ func (s ExpectScenario) Compile(vars *Vars) (newexpect ExpectScenario, err error
 	}
 
 	return newexpect, nil
+}
+
+func (s ExpectScenario) isValidCondition() error {
+	switch s.Condition.(type) {
+	case string:
+	case map[string]interface{}:
+	default:
+		return errors.Errorf("unknown condition type, %T", s.Condition)
+	}
+
+	return nil
 }
 
 type ScenarioAction struct {

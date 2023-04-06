@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oleksandr/conditions"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -22,6 +23,7 @@ type WatchLogs struct {
 	vars                 *Vars
 	getHostFunc          func(string) Host
 	findDBFunc           func(context.Context, bson.M) (interface{}, bool, error)
+	countDBFunc          func(context.Context, bson.M) (int64, error)
 	expects              []ExpectScenario
 	actives              []ExpectScenario
 	checkInterval        time.Duration
@@ -34,6 +36,7 @@ func NewWatchLogs(
 	vars *Vars,
 	getHostFunc func(string) Host,
 	findDBFunc func(context.Context, bson.M) (interface{}, bool, error),
+	countDBFunc func(context.Context, bson.M) (int64, error),
 	actionFunc func(context.Context, ScenarioAction) error,
 	insertLogEntriesFunc func(context.Context, []LogEntry) error,
 ) *WatchLogs {
@@ -55,6 +58,7 @@ func NewWatchLogs(
 		vars:                 vars,
 		getHostFunc:          getHostFunc,
 		findDBFunc:           findDBFunc,
+		countDBFunc:          countDBFunc,
 		actionFunc:           actionFunc,
 		insertLogEntriesFunc: insertLogEntriesFunc,
 	}
@@ -214,8 +218,19 @@ func (w *WatchLogs) compileConditionQueries(expect ExpectScenario) (queries []Co
 	return queries, nil
 }
 
-func (w *WatchLogs) compileConditionQuery(s string, vars *Vars) (ConditionQuery, error) {
-	e := util.StringErrorFunc("compile condition query")
+func (w *WatchLogs) compileConditionQuery(s interface{}, vars *Vars) (ConditionQuery, error) {
+	switch t := s.(type) {
+	case string:
+		return w.compileStringConditionQuery(t, vars)
+	case map[string]interface{}:
+		return w.compileMapConditionQuery(t, vars)
+	default:
+		return nil, errors.Errorf("unknown condition type, %T", t)
+	}
+}
+
+func (w *WatchLogs) compileStringConditionQuery(s string, vars *Vars) (ConditionQuery, error) {
+	e := util.StringErrorFunc("compile condition string query")
 
 	var alias string
 	var rangevalue map[string]interface{}
@@ -247,7 +262,7 @@ func (w *WatchLogs) compileConditionQuery(s string, vars *Vars) (ConditionQuery,
 			m[k] = rangevalue[k]
 		}
 
-		return MongodbConditionQuery{findDBFunc: w.findDBFunc, m: m}, nil
+		return MongodbFindConditionQuery{findDBFunc: w.findDBFunc, m: m}, nil
 	case strings.HasPrefix(n, "$ "):
 		if len(alias) < 1 {
 			return nil, e(nil, "empty alias for hostCommandConditionQuery, %q", s)
@@ -269,6 +284,75 @@ func (w *WatchLogs) compileConditionQuery(s string, vars *Vars) (ConditionQuery,
 	default:
 		return nil, e(nil, "unknown condition, %q", s)
 	}
+}
+
+func (w *WatchLogs) compileMapConditionQuery(s map[string]interface{}, vars *Vars) (ConditionQuery, error) {
+	e := util.StringErrorFunc("compile condition map query")
+
+	var query, countString string
+	var count conditions.Expr
+
+	for key := range s {
+		var value string
+
+		switch t := s[key].(type) {
+		case string:
+			value = t
+		default:
+			return nil, e(nil, "unknown map condition value type, %T", t)
+		}
+
+		switch key {
+		case "query":
+			query = value
+		case "count":
+			p := conditions.NewParser(strings.NewReader(fmt.Sprintf("$0 %s", value)))
+
+			expr, err := p.Parse()
+			if err != nil {
+				return nil, e(err, "")
+			}
+
+			count = expr
+			countString = value
+		default:
+			return nil, e(nil, "unknown map condition key, %q", key)
+		}
+	}
+
+	if count == nil {
+		return w.compileStringConditionQuery(query, vars)
+	}
+
+	c, err := CompileTemplate(query, vars, nil)
+	if err != nil {
+		return nil, e(err, "")
+	}
+
+	var m bson.M
+	if err := bson.UnmarshalExtJSON([]byte(c), false, &m); err != nil {
+		return nil, errors.WithMessagef(err, "unmarshal query, %q", c)
+	}
+
+	var rangevalue map[string]interface{}
+
+	switch i, found := vars.Value(".self.range"); {
+	case !found:
+		rangevalue = map[string]interface{}{}
+	default:
+		rangevalue = i.(map[string]interface{}) //nolint:forcetypeassert //...
+	}
+
+	for k := range rangevalue {
+		m[k] = rangevalue[k]
+	}
+
+	return MongodbCountConditionQuery{
+		countDBFunc: w.countDBFunc,
+		m:           m,
+		count:       count,
+		countString: countString,
+	}, nil
 }
 
 func (w *WatchLogs) evaluate(
@@ -413,19 +497,46 @@ type ConditionQuery interface {
 	Find(context.Context) (interface{}, bool, error)
 }
 
-type MongodbConditionQuery struct {
+type MongodbFindConditionQuery struct {
 	findDBFunc func(context.Context, bson.M) (interface{}, bool, error)
 	m          bson.M
 }
 
-func (c MongodbConditionQuery) String() string {
+func (c MongodbFindConditionQuery) String() string {
 	b, _ := util.MarshalJSON(c.m)
 
 	return string(b)
 }
 
-func (c MongodbConditionQuery) Find(ctx context.Context) (out interface{}, ok bool, _ error) {
+func (c MongodbFindConditionQuery) Find(ctx context.Context) (out interface{}, ok bool, _ error) {
 	return c.findDBFunc(ctx, c.m)
+}
+
+type MongodbCountConditionQuery struct {
+	count       conditions.Expr
+	countDBFunc func(context.Context, bson.M) (int64, error)
+	m           bson.M
+	countString string
+}
+
+func (c MongodbCountConditionQuery) String() string {
+	b, _ := util.MarshalJSON(map[string]interface{}{
+		"query": c.m,
+		"count": c.countString,
+	})
+
+	return string(b)
+}
+
+func (c MongodbCountConditionQuery) Find(ctx context.Context) (out interface{}, ok bool, _ error) {
+	i, err := c.countDBFunc(ctx, c.m)
+	if err != nil {
+		return nil, false, err
+	}
+
+	r, err := conditions.Evaluate(c.count, map[string]interface{}{"$0": i})
+
+	return nil, r, errors.WithStack(err)
 }
 
 type HostCommandConditionQuery struct {

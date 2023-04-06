@@ -86,6 +86,9 @@ func (cmd *runCommand) Run() error {
 		func(ctx context.Context, m bson.M) (interface{}, bool, error) {
 			return cmd.db.Find(ctx, m)
 		},
+		func(ctx context.Context, m bson.M) (int64, error) {
+			return cmd.db.Count(ctx, m)
+		},
 		cmd.action,
 		cmd.db.InsertLogEntries,
 	)

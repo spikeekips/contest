@@ -115,6 +115,12 @@ func (db *Mongodb) Find(ctx context.Context, query bson.M) (record map[string]in
 	}
 }
 
+func (db *Mongodb) Count(ctx context.Context, query bson.M) (int64, error) {
+	i, err := db.db.Collection(mongodbColLogEntry).CountDocuments(ctx, query, nil)
+
+	return i, errors.WithStack(err)
+}
+
 func (db *Mongodb) createIndices(ctx context.Context, col string, models []mongo.IndexModel, prefix string) error {
 	iv := db.db.Collection(col).Indexes()
 
