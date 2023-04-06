@@ -1,10 +1,6 @@
 module github.com/contest/cmd/mitum
 
-go 1.19
-
-replace github.com/hashicorp/memberlist => github.com/spikeekips/memberlist v0.0.0-20220911004242-b4ae68224e0b
-
-replace github.com/spikeekips/mitum => /workspace/mitum/src
+go 1.20
 
 require (
 	github.com/alecthomas/kong v0.7.1
@@ -16,7 +12,7 @@ require (
 	github.com/spikeekips/contest2 v0.0.0-00010101000000-000000000000
 	github.com/spikeekips/mitum v0.0.0-20220114011226-d18fa4bf4d4d
 	go.uber.org/automaxprocs v1.5.1
-	gopkg.in/yaml.v2 v2.4.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -82,6 +78,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/montanaflynn/stats v0.7.0 // indirect
 	github.com/oklog/ulid/v2 v2.1.0 // indirect
+	github.com/oleksandr/conditions v0.0.0-20170913191404-8ed8af13bdec // indirect
 	github.com/onsi/ginkgo/v2 v2.9.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
@@ -113,7 +110,8 @@ require (
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.7.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/spikeekips/mitum => /workspace/mitum/src
 
 replace github.com/spikeekips/contest2 => /workspace/mitum/contest

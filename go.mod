@@ -7,6 +7,7 @@ require (
 	github.com/docker/docker v23.0.3+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/nxadm/tail v1.4.8
+	github.com/oleksandr/conditions v0.0.0-20170913191404-8ed8af13bdec
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/sftp v1.13.5
 	github.com/rs/zerolog v1.29.0
@@ -15,7 +16,7 @@ require (
 	go.uber.org/automaxprocs v1.5.1
 	golang.org/x/crypto v0.7.0
 	golang.org/x/text v0.8.0
-	gopkg.in/yaml.v2 v2.4.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -106,7 +107,6 @@ require (
 	golang.org/x/tools v0.7.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.2.0 // indirect
 )
 

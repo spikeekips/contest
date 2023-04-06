@@ -14,7 +14,7 @@ import (
 	contest "github.com/spikeekips/contest2"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 var DefaultHostBase = "/tmp/contest"

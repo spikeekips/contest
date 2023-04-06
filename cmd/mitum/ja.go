@@ -7,7 +7,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 func prepareJAVM(log *logging.Logging) (*goja.Runtime, error) {
@@ -88,7 +88,7 @@ func loadConfigFromDesign[T any](s string, name string, v *T) error {
 }
 
 func loadScript(s string, name string) (string, error) {
-	var j map[interface{}]interface{}
+	var j map[string]interface{}
 
 	if err := loadConfigFromDesign(s, name, &j); err != nil {
 		return "", err
