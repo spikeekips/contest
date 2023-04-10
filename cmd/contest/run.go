@@ -73,7 +73,7 @@ func (cmd *runCommand) Run() error {
 		}
 	}()
 
-	cmd.logch = make(chan contest.LogEntry)
+	cmd.logch = make(chan contest.LogEntry, 1<<13)
 
 	w := contest.NewWatchLogs(
 		cmd.design.Expects,
