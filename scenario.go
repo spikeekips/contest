@@ -20,26 +20,26 @@ type Design struct {
 }
 
 func (s Design) IsValid(b []byte) error {
-	e := util.StringErrorFunc("invalid Design")
+	e := util.StringError("invalid Design")
 
 	if err := s.Designs.IsValid(b); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if len(s.Expects) < 1 {
-		return e(nil, "empty expects")
+		return e.Errorf("empty expects")
 	}
 
 	for i := range s.Expects {
 		if err := s.Expects[i].IsValid(b); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
 	if _, found := util.IsDuplicatedSlice(s.Nodes.SameHost, func(i string) (bool, string) {
 		return true, i //nolint:forcetypeassert //...
 	}); found {
-		return e(nil, "duplicated nodes found")
+		return e.Errorf("duplicated nodes found")
 	}
 
 	return nil
@@ -53,17 +53,17 @@ type NodeDesigns struct {
 }
 
 func (s NodeDesigns) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid NodeDesigns")
+	e := util.StringError("invalid NodeDesigns")
 
 	if (s.NumberNodes == nil || *s.NumberNodes < 1) && len(s.Nodes) < 1 {
-		return e(nil, "empty nodes")
+		return e.Errorf("empty nodes")
 	}
 
 	if len(s.Nodes) > 0 {
 		// NOTE check node alias format
 		for i := range s.Nodes {
 			if err := isValidNodeAliasFormat(i); err != nil {
-				return e(err, "")
+				return e.Wrap(err)
 			}
 		}
 	}
@@ -148,42 +148,42 @@ type ExpectScenario struct {
 }
 
 func (s ExpectScenario) IsValid(b []byte) error {
-	e := util.StringErrorFunc("invalid ExpectScenario")
+	e := util.StringError("invalid ExpectScenario")
 
 	if len(s.Log) > 0 {
 		return nil
 	}
 
 	if s.Condition == nil {
-		return e(nil, "empty condition")
+		return e.Errorf("empty condition")
 	}
 
 	if err := s.isValidCondition(); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	for i := range s.Actions {
 		if err := s.Actions[i].IsValid(b); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
 	for i := range s.Registers {
 		if err := s.Registers[i].IsValid(b); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
 	if s.Interval < 0 {
-		return e(nil, "under zero interval")
+		return e.Errorf("under zero interval")
 	}
 
 	if s.InitialWait < 0 {
-		return e(nil, "under zero initial_wait")
+		return e.Errorf("under zero initial_wait")
 	}
 
 	if err := s.IfConditionFailed.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -287,10 +287,10 @@ type ScenarioAction struct {
 }
 
 func (s ScenarioAction) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid ScenarioAction")
+	e := util.StringError("invalid ScenarioAction")
 
 	if len(s.Type) < 1 {
-		return e(nil, "empty type")
+		return e.Errorf("empty type")
 	}
 
 	return nil
@@ -348,15 +348,15 @@ type ScenarioRegister struct {
 }
 
 func (s ScenarioRegister) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid ScenarioRegister")
+	e := util.StringError("invalid ScenarioRegister")
 
 	switch {
 	case len(s.Assign) < 1:
-		return e(nil, "empty assign")
+		return e.Errorf("empty assign")
 	case !strings.HasPrefix(s.Assign, "."):
-		return e(nil, "wrong assign format; must start with `.`")
+		return e.Errorf("wrong assign format; must start with `.`")
 	case strings.HasSuffix(s.Assign, "."):
-		return e(nil, "wrong assign format; must not end with `.`")
+		return e.Errorf("wrong assign format; must not end with `.`")
 	}
 
 	return nil
@@ -381,15 +381,15 @@ type NodesDesign struct {
 var reNodeAlias = regexp.MustCompile(`^no\d+$`)
 
 func isValidNodeAliasFormat(s string) error {
-	e := util.StringErrorFunc("invalid node alias")
+	e := util.StringError("invalid node alias")
 
 	i := strings.TrimSpace(s)
 
 	switch {
 	case len(i) < 1:
-		return e(nil, "empty alias")
+		return e.Errorf("empty alias")
 	case !reNodeAlias.MatchString(i):
-		return e(nil, "wrong format")
+		return e.Errorf("wrong format")
 	default:
 		return nil
 	}

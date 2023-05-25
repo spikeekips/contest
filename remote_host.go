@@ -84,7 +84,7 @@ func (h *RemoteHost) FreePort(id, network string) (string, error) {
 }
 
 func (h *RemoteHost) Upload(s io.Reader, name, dest string, mode os.FileMode) error {
-	e := util.StringErrorFunc("upload file")
+	e := util.StringError("upload file")
 
 	newdest := filepath.Join(h.base, dest)
 
@@ -114,11 +114,11 @@ func (h *RemoteHost) Upload(s io.Reader, name, dest string, mode os.FileMode) er
 
 		return false, nil
 	}, 3, time.Second); err != nil { //nolint:gomnd //...
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if _, _, err := h.runCommand(fmt.Sprintf(`chmod %o '%s'`, mode, newdest)); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	h.addFile(name, newdest)
@@ -167,16 +167,16 @@ func (h *RemoteHost) upload(s io.Reader, _, dest string) error {
 }
 
 func (h *RemoteHost) CollectResult(outputfile string) error {
-	e := util.StringErrorFunc("collect result")
+	e := util.StringError("collect result")
 
 	out, err := os.Create(outputfile)
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	session, err := h.sshSession()
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	defer func() {
@@ -186,23 +186,23 @@ func (h *RemoteHost) CollectResult(outputfile string) error {
 	session.Stdout = out
 
 	if err := session.Run(fmt.Sprintf(`cd "%s" && tar zcf - .`, h.base)); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
 }
 
 func (h *RemoteHost) Mkdir(dest string, mode os.FileMode) error {
-	e := util.StringErrorFunc("Mkdir")
+	e := util.StringError("Mkdir")
 
 	client, err := h.sshClient()
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	st, err := sftp.NewClient(client)
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	defer func() {
@@ -212,56 +212,56 @@ func (h *RemoteHost) Mkdir(dest string, mode os.FileMode) error {
 	newdest := filepath.Join(h.base, dest)
 
 	if err := st.MkdirAll(newdest); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := st.Chmod(newdest, mode); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
 }
 
 func (h *RemoteHost) LocalAddr() (addr netip.Addr, _ error) {
-	e := util.StringErrorFunc("get local publish address")
+	e := util.StringError("get local publish address")
 
 	out, _, err := h.runCommand(`echo "${SSH_CONNECTION}"`)
 	if err != nil {
-		return addr, e(err, "")
+		return addr, e.Wrap(err)
 	}
 
 	l := strings.SplitN(out, " ", 2)
 	if len(l) != 2 { //nolint:gomnd //...
-		return addr, e(nil, "invalid output")
+		return addr, e.Errorf("invalid output")
 	}
 
 	addr, err = netip.ParseAddr(l[0])
 	if err != nil {
-		return addr, e(err, "")
+		return addr, e.Wrap(err)
 	}
 
 	return addr, nil
 }
 
 func (h *RemoteHost) checkEnv() error {
-	e := util.StringErrorFunc("check env")
+	e := util.StringError("check env")
 
 	switch s, _, err := h.runCommand("id -u"); {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	default:
 		h.user = strings.TrimSuffix(s, "\n")
 	}
 
 	switch s, _, err := h.runCommand("uname -sm"); {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	default:
 		uname := strings.TrimSuffix(s, "\n")
 
 		arch, found := supportedArchs[uname]
 		if !found {
-			return e(nil, "not supported arch, %q", uname)
+			return e.Errorf("not supported arch, %q", uname)
 		}
 
 		h.arch = arch
@@ -271,16 +271,16 @@ func (h *RemoteHost) checkEnv() error {
 }
 
 func (h *RemoteHost) checkBase() error {
-	e := util.StringErrorFunc("check base")
+	e := util.StringError("check base")
 
 	client, err := h.sshClient()
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	st, err := sftp.NewClient(client)
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	defer func() {
@@ -288,11 +288,11 @@ func (h *RemoteHost) checkBase() error {
 	}()
 
 	if err := st.MkdirAll(h.base); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := st.Chmod(h.base, 0o700); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -310,18 +310,18 @@ func (h *RemoteHost) sshClient() (*ssh.Client, error) {
 }
 
 func (h *RemoteHost) newSSHClient() (*ssh.Client, error) {
-	e := util.StringErrorFunc("create ssh client")
+	e := util.StringError("create ssh client")
 
 	sock, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	agentsock := agent.NewClient(sock)
 
 	signers, err := agentsock.Signers()
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	config := &ssh.ClientConfig{
@@ -352,11 +352,11 @@ func (h *RemoteHost) newSSHClient() (*ssh.Client, error) {
 }
 
 func (h *RemoteHost) sshSession() (*ssh.Session, error) {
-	e := util.StringErrorFunc("create ssh session")
+	e := util.StringError("create ssh session")
 
 	client, err := h.sshClient()
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3) //nolint:gomnd //...
@@ -386,18 +386,18 @@ func (h *RemoteHost) sshSession() (*ssh.Session, error) {
 			return true, err
 		}
 	}, -1, time.Millisecond*600); err != nil { //nolint:gomnd //...
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	return session, nil
 }
 
 func (h *RemoteHost) remoteFreePort(network string, _ nat.PortMap) (string, error) {
-	e := util.StringErrorFunc("get free port")
+	e := util.StringError("get free port")
 
 	session, err := h.sshSession()
 	if err != nil {
-		return "", e(err, "")
+		return "", e.Wrap(err)
 	}
 
 	defer func() {
@@ -416,7 +416,7 @@ func (h *RemoteHost) remoteFreePort(network string, _ nat.PortMap) (string, erro
 	case "tcp":
 		cmd = tcpFreeportCmdF
 	default:
-		return "", e(nil, "unsupported network, %q", network)
+		return "", e.Errorf("unsupported network, %q", network)
 	}
 
 	bufstdout.Reset()
@@ -424,11 +424,11 @@ func (h *RemoteHost) remoteFreePort(network string, _ nat.PortMap) (string, erro
 
 	switch err := session.Run(cmd); {
 	case err != nil:
-		return "", e(err, "")
+		return "", e.Wrap(err)
 	case len(bufstderr.Bytes()) > 0:
-		return "", e(nil, "stderr: %q", bufstderr.String())
+		return "", e.Errorf("stderr: %q", bufstderr.String())
 	case len(bufstdout.Bytes()) < 1:
-		return "", e(nil, "empty output")
+		return "", e.Errorf("empty output")
 	default:
 		return strings.TrimSpace(bufstdout.String()), nil
 	}

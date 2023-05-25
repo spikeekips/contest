@@ -230,7 +230,7 @@ func (w *WatchLogs) compileConditionQuery(s interface{}, vars *Vars) (ConditionQ
 }
 
 func (w *WatchLogs) compileStringConditionQuery(s string, vars *Vars) (ConditionQuery, error) {
-	e := util.StringErrorFunc("compile condition string query")
+	e := util.StringError("compile condition string query")
 
 	var alias string
 	var rangevalue map[string]interface{}
@@ -250,7 +250,7 @@ func (w *WatchLogs) compileStringConditionQuery(s string, vars *Vars) (Condition
 	case strings.HasPrefix(n, "{"):
 		c, err := CompileTemplate(n, vars, nil)
 		if err != nil {
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 
 		var m bson.M
@@ -265,29 +265,29 @@ func (w *WatchLogs) compileStringConditionQuery(s string, vars *Vars) (Condition
 		return MongodbFindConditionQuery{findDBFunc: w.findDBFunc, m: m}, nil
 	case strings.HasPrefix(n, "$ "):
 		if len(alias) < 1 {
-			return nil, e(nil, "empty alias for hostCommandConditionQuery, %q", s)
+			return nil, e.Errorf("empty alias for hostCommandConditionQuery, %q", s)
 		}
 
 		host := w.getHostFunc(alias)
 		if host == nil {
-			return nil, e(nil, "host not found")
+			return nil, e.Errorf("host not found")
 		}
 
 		vars.Set(".self.host", host)
 
 		c, err := CompileTemplate(n[1:], vars, nil)
 		if err != nil {
-			return nil, e(err, "")
+			return nil, e.Wrap(err)
 		}
 
 		return HostCommandConditionQuery{host: host, cmd: c}, nil
 	default:
-		return nil, e(nil, "unknown condition, %q", s)
+		return nil, e.Errorf("unknown condition, %q", s)
 	}
 }
 
 func (w *WatchLogs) compileMapConditionQuery(s map[string]interface{}, vars *Vars) (ConditionQuery, error) {
-	e := util.StringErrorFunc("compile condition map query")
+	e := util.StringError("compile condition map query")
 
 	var query, countString string
 	var count conditions.Expr
@@ -299,7 +299,7 @@ func (w *WatchLogs) compileMapConditionQuery(s map[string]interface{}, vars *Var
 		case string:
 			value = t
 		default:
-			return nil, e(nil, "unknown map condition value type, %T", t)
+			return nil, e.Errorf("unknown map condition value type, %T", t)
 		}
 
 		switch key {
@@ -310,13 +310,13 @@ func (w *WatchLogs) compileMapConditionQuery(s map[string]interface{}, vars *Var
 
 			expr, err := p.Parse()
 			if err != nil {
-				return nil, e(err, "")
+				return nil, e.Wrap(err)
 			}
 
 			count = expr
 			countString = value
 		default:
-			return nil, e(nil, "unknown map condition key, %q", key)
+			return nil, e.Errorf("unknown map condition key, %q", key)
 		}
 	}
 
@@ -326,7 +326,7 @@ func (w *WatchLogs) compileMapConditionQuery(s map[string]interface{}, vars *Var
 
 	c, err := CompileTemplate(query, vars, nil)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	var m bson.M

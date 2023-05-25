@@ -97,7 +97,7 @@ func (cmd *runCommand) prepareFlags() error {
 }
 
 func (cmd *runCommand) prepareHosts() error {
-	e := util.StringErrorFunc("prepare hosts")
+	e := util.StringError("prepare hosts")
 
 	samehost := make([]string, len(cmd.design.Nodes.SameHost))
 	for i := range cmd.design.Nodes.SameHost {
@@ -115,14 +115,14 @@ func (cmd *runCommand) prepareHosts() error {
 		case h.host == "localhost":
 			i, err := contest.NewLocalHost(h.base, h.dockerhost)
 			if err != nil {
-				return e(err, "")
+				return e.Wrap(err)
 			}
 
 			host = i
 		default:
 			i, err := contest.NewRemoteHost(h.base, h.dockerhost)
 			if err != nil {
-				return e(err, "")
+				return e.Wrap(err)
 			}
 
 			host = i
@@ -133,12 +133,12 @@ func (cmd *runCommand) prepareHosts() error {
 		}
 
 		if err := cmd.hosts.New(host); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
 	if err := cmd.checkLocalPublishHost(); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	worker := util.NewErrgroupWorker(context.Background(), int64(cmd.hosts.Len()))
@@ -201,18 +201,18 @@ func (cmd *runCommand) prepareBinaries(host contest.Host) error {
 }
 
 func (cmd *runCommand) prepareBase() error {
-	e := util.StringErrorFunc("prepare base directory")
+	e := util.StringError("prepare base directory")
 
 	switch fi, err := os.Stat(cmd.BaseDir); {
 	case err == nil:
 		if !fi.IsDir() {
-			return e(nil, "base directory,%q not directory", cmd.BaseDir)
+			return e.Errorf("base directory,%q not directory", cmd.BaseDir)
 		}
 	case !os.IsNotExist(err):
-		return e(err, "")
+		return e.Wrap(err)
 	default:
 		if err := os.MkdirAll(cmd.BaseDir, 0o700); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
@@ -220,7 +220,7 @@ func (cmd *runCommand) prepareBase() error {
 
 	switch i, err := filepath.Abs(cmd.BaseDir); {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	default:
 		cmd.basedir = i
 
@@ -259,28 +259,28 @@ func (cmd *runCommand) prepareLogs() error {
 }
 
 func (cmd *runCommand) prepareDesign() error {
-	e := util.StringErrorFunc("load design")
+	e := util.StringError("load design")
 
 	i, err := os.ReadFile(cmd.Design)
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	log.Debug().Str("content", string(i)).Msg("design")
 
 	if err := yaml.Unmarshal(i, &cmd.design); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := cmd.design.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
 }
 
 func (cmd *runCommand) prepareScenario() error { //revive:disable-line:cognitive-complexity,function-length,cyclomatic
-	e := util.StringErrorFunc("load scenario")
+	e := util.StringError("load scenario")
 
 	log.Debug().Interface("scenario", cmd.design).Msg("scenario loaded")
 
@@ -343,7 +343,7 @@ func (cmd *runCommand) prepareScenario() error { //revive:disable-line:cognitive
 
 		host, err := cmd.hosts.NewContainer(containerName(alias))
 		if err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		extra := map[string]interface{}{
@@ -355,7 +355,7 @@ func (cmd *runCommand) prepareScenario() error { //revive:disable-line:cognitive
 
 		bc, err := contest.CompileTemplate(cmd.design.Designs.Common, vars, extra)
 		if err != nil {
-			return e(err, "compile common design for %s", alias)
+			return e.WithMessage(err, "compile common design for %s", alias)
 		}
 
 		designs[alias] = strings.TrimSpace(bc) + "\n"
@@ -368,7 +368,7 @@ func (cmd *runCommand) prepareScenario() error { //revive:disable-line:cognitive
 
 		host, err := cmd.hosts.NewContainer(containerName(alias))
 		if err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		extra := map[string]interface{}{
@@ -380,7 +380,7 @@ func (cmd *runCommand) prepareScenario() error { //revive:disable-line:cognitive
 
 		bn, err := contest.CompileTemplate(cmd.design.Designs.Nodes[alias], vars, extra)
 		if err != nil {
-			return e(err, "compile node design for %s", alias)
+			return e.WithMessage(err, "compile node design for %s", alias)
 		}
 
 		designs[alias] += strings.TrimSpace(bn) + "\n"
@@ -390,7 +390,7 @@ func (cmd *runCommand) prepareScenario() error { //revive:disable-line:cognitive
 
 	genesis, err := contest.CompileTemplate(cmd.design.Designs.Genesis, vars, nil)
 	if err != nil {
-		return e(err, "compile genesis design")
+		return e.WithMessage(err, "compile genesis design")
 	}
 
 	genesisfile := filepath.Join(cmd.basedir, "genesis.yml")
@@ -406,18 +406,18 @@ func (cmd *runCommand) prepareScenario() error { //revive:disable-line:cognitive
 
 	if err := cmd.hosts.TraverseByHost(func(h contest.Host, _ []string) (bool, error) {
 		if err := h.Upload(strings.NewReader(genesis), "genesis.yml", "genesis.yml", 0o600); err != nil {
-			return false, e(err, "")
+			return false, e.Wrap(err)
 		}
 
 		return true, nil
 	}); err != nil {
-		return e(err, "upload genesis.yml")
+		return e.WithMessage(err, "upload genesis.yml")
 	}
 
 	for alias := range designs {
 		host := cmd.hosts.HostByContainer(containerName(alias))
 		if host == nil {
-			return e(nil, "not found in host")
+			return e.Errorf("not found in host")
 		}
 
 		configfile := filepath.Join(cmd.basedir, alias+".yml")
@@ -438,14 +438,14 @@ func (cmd *runCommand) prepareScenario() error { //revive:disable-line:cognitive
 
 			return nil
 		}(); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		if err := host.Mkdir(
 			alias,
 			0o700,
 		); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 
 		if err := host.Upload(
@@ -454,7 +454,7 @@ func (cmd *runCommand) prepareScenario() error { //revive:disable-line:cognitive
 			filepath.Join(alias, "config.yml"),
 			0o600,
 		); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 

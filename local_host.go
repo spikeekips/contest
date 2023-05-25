@@ -75,13 +75,13 @@ func (h *LocalHost) FreePort(id, network string) (string, error) {
 }
 
 func (h *LocalHost) Upload(s io.Reader, name, dest string, mode os.FileMode) error {
-	e := util.StringErrorFunc("upload")
+	e := util.StringError("upload")
 
 	newdest := filepath.Join(h.base, dest)
 
 	n, err := os.OpenFile(newdest, os.O_WRONLY|os.O_CREATE, mode)
 	if err != nil {
-		return e(err, "create upload dest file for %q", newdest)
+		return e.WithMessage(err, "create upload dest file for %q", newdest)
 	}
 
 	defer func() {
@@ -89,7 +89,7 @@ func (h *LocalHost) Upload(s io.Reader, name, dest string, mode os.FileMode) err
 	}()
 
 	if _, err := io.Copy(n, s); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	h.addFile(name, newdest)
@@ -98,7 +98,7 @@ func (h *LocalHost) Upload(s io.Reader, name, dest string, mode os.FileMode) err
 }
 
 func (h *LocalHost) CollectResult(outputfile string) error {
-	e := util.StringErrorFunc("collect result")
+	e := util.StringError("collect result")
 
 	o := outputfile
 
@@ -110,7 +110,7 @@ func (h *LocalHost) CollectResult(outputfile string) error {
 
 	out, err := os.Create(o)
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	defer func() {
@@ -161,7 +161,7 @@ func (h *LocalHost) CollectResult(outputfile string) error {
 
 		return addfile(path, info)
 	}); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -215,7 +215,7 @@ func (h *LocalHost) runCommand(s string) (stdout string, stderr string, _ error)
 	cmd.Stdout = &bstdout
 	cmd.Stderr = &bstderr
 
-	e := util.StringErrorFunc("run command")
+	e := util.StringError("run command")
 
 	err := cmd.Run()
 
@@ -226,7 +226,7 @@ func (h *LocalHost) runCommand(s string) (stdout string, stderr string, _ error)
 		Msg("host command finished")
 
 	if err != nil {
-		return bstdout.String(), bstderr.String(), e(err, "")
+		return bstdout.String(), bstderr.String(), e.Wrap(err)
 	}
 
 	return bstdout.String(), bstderr.String(), nil

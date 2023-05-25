@@ -4,7 +4,7 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/util"
+	"golang.org/x/exp/slices"
 )
 
 type Hosts struct {
@@ -110,7 +110,7 @@ func (h *Hosts) assignHost(cid string) Host {
 		return nil
 	}
 
-	if util.InSlice(h.samehost, cid) >= 0 {
+	if slices.Index[string](h.samehost, cid) >= 0 {
 		for i := range h.samehost {
 			s := h.samehost[i]
 			if s == cid {

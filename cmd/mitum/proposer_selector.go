@@ -12,6 +12,7 @@ import (
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
+	"golang.org/x/exp/slices"
 )
 
 type ProposerSelector struct {
@@ -116,7 +117,7 @@ func proposerSelectFunc(vm *goja.Runtime, f goja.Callable) func(context.Context,
 				return nil, errors.Errorf("return value, expected string, but %T", v)
 			}
 
-			i := util.InSliceFunc(nodes, func(n base.Node) bool {
+			i := slices.IndexFunc[base.Node](nodes, func(n base.Node) bool {
 				return n.Address().String() == s
 			})
 

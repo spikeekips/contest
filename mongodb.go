@@ -35,21 +35,21 @@ type Mongodb struct {
 }
 
 func NewMongodbFromURI(ctx context.Context, uri string) (*Mongodb, error) {
-	e := util.StringErrorFunc("connect mongodb")
+	e := util.StringError("connect mongodb")
 
 	cs, err := connstring.Parse(uri)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	if len(cs.Database) < 1 {
-		return nil, e(err, "empty database")
+		return nil, e.WithMessage(err, "empty database")
 	}
 
 	db := &Mongodb{}
 
 	if err := db.connect(ctx, cs); err != nil {
-		return nil, e(err, "")
+		return nil, e.WithMessage(err, "")
 	}
 
 	return db, nil

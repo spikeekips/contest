@@ -43,8 +43,8 @@ func newBaseHost(base string, addr *url.URL, client *dockerClient.Client) (*base
 		base:       filepath.Join(base, util.ULID().String()),
 		addr:       addr,
 		client:     client,
-		containers: util.NewSingleLockedMap("", ""),
-		ports:      util.NewSingleLockedMap("", ""),
+		containers: util.NewSingleLockedMap[string, string](),
+		ports:      util.NewSingleLockedMap[string, string](),
 		files:      map[string]string{},
 	}
 
@@ -68,23 +68,23 @@ func (h *baseHost) Base() string {
 }
 
 func (h *baseHost) Close() error {
-	e := util.StringErrorFunc("close host")
+	e := util.StringError("close host")
 
 	_ = h.cleanContainers(false)
 
 	if err := h.client.Close(); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
 }
 
 func (h *baseHost) cleanContainers(remove bool) error { //revive:disable-line:flag-parameter
-	e := util.StringErrorFunc("clean containers")
+	e := util.StringError("clean containers")
 
 	l, err := h.client.ContainerList(context.Background(), dockerTypes.ContainerListOptions{All: true})
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	var cids []string
@@ -123,7 +123,7 @@ func (h *baseHost) cleanContainers(remove bool) error { //revive:disable-line:fl
 			return nil
 		},
 	); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -234,15 +234,15 @@ func (h *baseHost) StartContainer(
 	name string,
 	whenExit func(container.WaitResponse, error),
 ) error {
-	e := util.StringErrorFunc("start container")
+	e := util.StringError("start container")
 
 	cid, err := h.findContainer(ctx, name)
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := h.client.ContainerStart(ctx, cid, dockerTypes.ContainerStartOptions{}); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if whenExit != nil {
@@ -266,15 +266,15 @@ func (h *baseHost) StartContainer(
 }
 
 func (h *baseHost) StopContainer(ctx context.Context, name string, timeout *time.Duration) error {
-	e := util.StringErrorFunc("stop container")
+	e := util.StringError("stop container")
 
 	cid, err := h.findContainer(ctx, name)
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := h.client.ContainerPause(ctx, cid); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	var ntimeout int
@@ -287,14 +287,14 @@ func (h *baseHost) StopContainer(ctx context.Context, name string, timeout *time
 	}
 
 	if err := h.client.ContainerStop(ctx, cid, container.StopOptions{Timeout: &ntimeout}); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
 }
 
 func (h *baseHost) RemoveContainer(ctx context.Context, name string, options dockerTypes.ContainerRemoveOptions) error {
-	e := util.StringErrorFunc("remove container")
+	e := util.StringError("remove container")
 
 	if _, err := h.containers.Remove(name, func(i string, found bool) error {
 		if !found {
@@ -307,7 +307,7 @@ func (h *baseHost) RemoveContainer(ctx context.Context, name string, options doc
 
 		return nil
 	}); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -318,16 +318,16 @@ func (h *baseHost) ContainerLogs(
 	name string,
 	options dockerTypes.ContainerLogsOptions,
 ) (io.ReadCloser, error) {
-	e := util.StringErrorFunc("failed container logs")
+	e := util.StringError("failed container logs")
 
 	cid, err := h.findContainer(ctx, name)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	r, err := h.client.ContainerLogs(ctx, cid, options)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, e.Wrap(err)
 	}
 
 	return r, nil

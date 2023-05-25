@@ -36,17 +36,17 @@ type HostFlag struct {
 }
 
 func (f *HostFlag) UnmarshalText(b []byte) error {
-	e := util.StringErrorFunc("parse host flag")
+	e := util.StringError("parse host flag")
 
 	h, err := url.Parse(string(b))
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	// NOTE parse fragment for additional information
 	frags, err := url.ParseQuery(h.Fragment)
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if i := frags.Get("base"); len(i) > 0 {
@@ -62,9 +62,9 @@ func (f *HostFlag) UnmarshalText(b []byte) error {
 		f.host = "localhost"
 		f.dockerhost = h
 	case len(h.Host) < 1:
-		return e(nil, "empty host")
+		return e.Errorf("empty host")
 	case h.Scheme != "tcp":
-		return e(nil, "scheme is not tcp, %q", h)
+		return e.Errorf("scheme is not tcp, %q", h)
 	default:
 		if len(h.Port()) < 1 {
 			h.Host = fmt.Sprintf("%s:2376", h.Host)

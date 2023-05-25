@@ -38,11 +38,11 @@ func (*runCommand) startRedisContainer(
 	h contest.Host,
 	whenExit func(container.WaitResponse, error),
 ) error {
-	e := util.StringErrorFunc("start container")
+	e := util.StringError("start container")
 
 	port, err := h.FreePort("database-redis", "tcp")
 	if err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	name := containerName("redis")
@@ -52,7 +52,7 @@ func (*runCommand) startRedisContainer(
 		Force:         true,
 	}); err != nil {
 		if !errors.Is(err, util.ErrNotFound) {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
@@ -72,11 +72,11 @@ func (*runCommand) startRedisContainer(
 	}
 
 	if err := h.CreateContainer(ctx, config, hostconfig, nil, name); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := h.StartContainer(ctx, hostconfig, nil, name, whenExit); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -111,7 +111,7 @@ func (cmd *runCommand) runNode(
 func (cmd *runCommand) doRunNode( //revive:disable-line:cyclomatic
 	ctx context.Context, host contest.Host, alias string, args []string,
 ) error {
-	e := util.StringErrorFunc("run node")
+	e := util.StringError("run node")
 
 	nargs := args
 
@@ -129,7 +129,7 @@ func (cmd *runCommand) doRunNode( //revive:disable-line:cyclomatic
 		Force:         true,
 	}); err != nil {
 		if !errors.Is(err, util.ErrNotFound) {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
@@ -137,7 +137,7 @@ func (cmd *runCommand) doRunNode( //revive:disable-line:cyclomatic
 	config.Cmd = nargs
 
 	if err := host.CreateContainer(ctx, config, hostconfig, nil, name); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := host.StartContainer(
@@ -219,33 +219,33 @@ func (cmd *runCommand) doRunNode( //revive:disable-line:cyclomatic
 			cmd.logch <- entry
 		},
 	); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := cmd.saveContainerLogs(ctx, alias); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
 }
 
 func (cmd *runCommand) stopNodes(ctx context.Context, alias string, _ []string) error {
-	e := util.StringErrorFunc("stop node")
+	e := util.StringError("stop node")
 
 	name := containerName(alias)
 
 	host := cmd.hosts.HostByContainer(name)
 	if host == nil {
-		return e(nil, "host not found")
+		return e.Errorf("host not found")
 	}
 
 	switch _, info, found, err := host.ExistsContainer(ctx, name); {
 	case err != nil:
-		return e(err, "")
+		return e.Wrap(err)
 	case !found:
 	case info == "running", info == "restarting":
 		if err := host.StopContainer(ctx, name, nil); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
