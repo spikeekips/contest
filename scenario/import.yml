@@ -19,6 +19,7 @@ designs:
 
     address: {{ setgetVar ".self.address" ( printf "%ssas" .self.alias ) }}
     privatekey: {{ .self.privatekey }}
+    #publickey: {{ .self.privatekey.Publickey }}
     network_id: {{ .network_id }}
     network:
       bind: 0.0.0.0:{{ freePort .self.host (print "node-" .self.alias) "udp" }}

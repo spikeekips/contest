@@ -1,5 +1,5 @@
-# - no0 and no3 has same address and keys
 # - no0, no1, no2, no3 enter consensus
+# - no0 is the fixed proposer
 # - no3 set 'not-allow' consensus by network client
 # - no3 enters syncing state
 
@@ -15,6 +15,7 @@ designs:
 
     address: {{ setgetVar ".self.address" ( printf "%ssas" .self.alias ) }}
     privatekey: {{ .self.privatekey }}
+    #publickey: {{ .self.privatekey.Publickey }}
     network_id: {{ .network_id }}
     network:
       bind: 0.0.0.0:{{ freePort .self.host (print "node-" .self.alias) "udp" }}
@@ -23,6 +24,31 @@ designs:
     storage:
       base: /data
     ballot-stuck-resolver: dummy
+    proposer-selector:
+      script: |
+        function selectProposer(point, nodes) {
+            if (nodes.length < 1) {
+              log.debug("empty nodes given")
+           
+              return ""
+            }
+           
+            var found = false;
+           
+            nodes.forEach(function(item, index, arr) {
+              if (item.address == "no0sas") {
+                found = true
+              }
+            })
+
+            log.debug("no0sas found?", "point", point, "nodes", nodes, "found", found)
+
+            if (!found) {
+              return "" /* if no0sas is not in nodes, default proposer will be used */
+            }
+
+            return "no0sas"
+        }
 
   genesis: |
       facts:
@@ -134,6 +160,8 @@ expects:
       {"x.message": "state switched", "x.next_state.next": "CONSENSUS"}
     registers:
       - assign: .matched.consensus
+    range:
+      - node: [no0, no1, no2, no3]
 
   - condition: |
       {"_id": {"$gt": "{{ .matched.consensus._id }}" }, "x.height": 2, "x.message": "new block saved"}
@@ -141,13 +169,6 @@ expects:
       - node: [no0, no1, no2, no3]
     registers:
       - assign: .matched.new_block
-
-  - condition: |
-      {"x.message": "state switched", "x.next_state.next": "CONSENSUS"}
-    registers:
-      - assign: .matched.consensus
-    range:
-      - node: [no0, no1, no2, no3]
 
   - log: set 'not-allow' for no3
 

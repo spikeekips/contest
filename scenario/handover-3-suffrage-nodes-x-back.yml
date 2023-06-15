@@ -1,0 +1,286 @@
+# 3 nodes can do consensus
+# - 3 nodes: no0, no1, no2
+# - all nodes are in suffrage from genesis
+# - no0 does init
+# - all nodes start
+# - all nodes will be in consensus
+# - new node, no3 will be new consensus for no2
+# - no3 tries to handover to no2
+# - after handover, no3 is new consensus node
+# - after handover, no2 under syncing state
+# - n0, n1, n3 save blocks
+# - no2 tries to handover to no3
+# - after handover, no2 is new consensus node
+# - after handover, no3 under syncing state
+# - n0, n1, n2 save blocks
+
+---
+ignore_abnormal_container_exit: true
+
+vars:
+  .network_id: mitum contest; Sat 26 Dec 2020 05:29:13 AM KST
+
+designs:
+  common: |
+    {{ if or (eq .self.alias "no2") (eq .self.alias "no3") }}
+      {{ setVar ".self.privatekey" (getOrCreateVar ".no2_privatekey" newKey) }}
+      {{ setVar ".self.publickey" .self.privatekey.Publickey }}
+    {{ else }}
+      {{ setVar ".self.privatekey" newKey }}
+      {{ setVar ".self.publickey" .self.privatekey.Publickey }}
+    {{ end }}
+
+    address: {{ if eq .self.alias "no3" }}{{ setgetVar ".self.address" "no2sas" }}{{ else }}{{ setgetVar ".self.address" ( printf "%ssas" .self.alias ) }}{{ end }}
+    privatekey: {{ .self.privatekey }}
+    #publickey: {{ .self.privatekey.Publickey }}
+    network_id: {{ .network_id }}
+    network:
+      bind: 0.0.0.0:{{ freePort .self.host (print "node-" .self.alias) "udp" }}
+      publish: {{ setgetVar ".self.network.publish" ( print .self.host.PublishHost ":" ( freePort .self.host (print "node-" .self.alias) "udp" ) ) }}
+      tls_insecure: true
+    storage:
+      base: /data
+    ballot-stuck-resolver: dummy
+
+  genesis: |
+      facts:
+        - _hint: suffrage-genesis-join-fact-v0.0.1
+          nodes:
+            - _hint: node-v0.0.1
+              address: {{ .nodes.no0.address }}
+              publickey: {{ .nodes.no0.publickey }}
+            - _hint: node-v0.0.1
+              address: {{ .nodes.no1.address }}
+              publickey: {{ .nodes.no1.publickey }}
+            - _hint: node-v0.0.1
+              address: {{ .nodes.no2.address }}
+              publickey: {{ .nodes.no2.publickey }}
+     
+        - _hint: genesis-network-policy-fact-v0.0.1
+          policy:
+            _hint: network-policy-v0.0.1
+            max_operations_in_proposal: 99
+            suffrage_candidate_lifespan: 33
+            suffrage_candidate_limiter:
+              _hint: fixed-suffrage-candidate-limiter-rule-v0.0.1
+              limit: 1 
+            max_suffrage_size: 99
+            suffrage_expel_lifespan: 99
+
+  number_nodes: 4
+  nodes:
+    no1: |
+      sync_sources:
+        - type: sync-source-node
+          address: {{ .nodes.no0.address }}
+          publickey: {{ .nodes.no0.publickey }}
+          publish: "{{ .nodes.no0.network.publish }}"
+          tls_insecure: true
+
+    no2: |
+      parameters:
+        isaac:
+          max_try_handover_y_broker_sync_data: 2
+
+      sync_sources:
+        - type: sync-source-node
+          address: {{ .nodes.no0.address }}
+          publickey: {{ .nodes.no0.publickey }}
+          publish: "{{ .nodes.no0.network.publish }}"
+          tls_insecure: true
+
+    no3: |
+      parameters:
+        isaac:
+          max_try_handover_y_broker_sync_data: 2
+
+expects:
+  - condition: |
+      {"msg": "contest ready"}
+    actions:
+      - type: "init-nodes"
+        args:
+          - /cmd
+          - init
+          - --design=config.yml
+          - genesis.yml
+        range:
+          - node: [no0]
+
+  - condition: |
+      {
+        "x.message": "genesis block generated",
+        "x.blockmap.manifest.height": 0,
+        "x.blockmap.node": "{{ .nodes.no0.address }}",
+        "x.blockmap.signer": "{{ .nodes.no0.publickey }}"
+      }
+    registers:
+      - assign: .matched.no0.genesis
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no0.genesis._id }}" }, "node": "no0", "x.exit_code": 0, "stderr": true}
+    actions:
+      - type: "run-nodes"
+        args:
+          - /cmd
+          - run
+          - --design=config.yml
+          - --dev.allow-consensus
+        range:
+          - node: [no0]
+
+      - type: "run-nodes"
+        args:
+          - /cmd
+          - run
+          - --design=config.yml
+          - --discovery
+          - "{{ .nodes.no0.network.publish }}#tls_insecure"
+          - --dev.allow-consensus
+        range:
+          - node: [no1, no2]
+
+  - condition: |
+      {"x.message": "state switched", "x.current_state": "BOOTING", "x.next_state.next": "SYNCING"}
+    range:
+      - node: [no1, no2]
+
+  - condition: |
+      {"x.message": "state switched", "x.next_state.next": "CONSENSUS"}
+    registers:
+      - assign: .matched.joining_to_consensus
+    range:
+      - node: [no1, no2]
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.joining_to_consensus._id }}" }, "node": "no0", "x.message": "new block saved"}
+    registers:
+      - assign: .matched.no0.new_block_saved
+
+  - condition: |
+      {"x.height": {"$gt": {{ .matched.no0.new_block_saved.x.height }} }, "x.message": "new block saved"}
+    range:
+      - node: [no0, no1, no2]
+
+  - log: start handover y, no3
+  - condition: "{}"
+    actions:
+      - type: "run-nodes"
+        args:
+          - /cmd
+          - run
+          - --design=config.yml
+        range:
+          - node: [no3]
+
+  - condition: |
+      {"node": "no3", "x.message": "state switched", "x.next_state.next": "SYNCING"}
+
+  - log: n3 starts handover for n2
+  - condition: |
+      $ {{ hostFile .self.host "cmd" }} \
+          --log.level=trace \
+          --log.format=json \
+          handover start \
+          "{{ .nodes.no2.address }}" \
+          "{{ .nodes.no2.network.publish}}#tls_insecure" \
+          "{{ .nodes.no2.privatekey }}" \
+          "{{ .network_id }}" \
+          "{{ .nodes.no3.network.publish}}#tls_insecure"
+    range:
+      - node: [no3]
+    if_condition_failed: "stop-contest"
+
+  - condition: |
+      {"node": "no3", "x.message": "handover y broker created"}
+
+  - condition: |
+      {"node": "no3", "x.height": {"$gt": 3 }, "x.message": "new block saved"}
+
+  - condition: |
+      {"node": "no3", "x.message": "handover asked"}
+
+  - condition: |
+      {"node": "no2", "x.message": "handover x broker created"}
+    registers:
+      - assign: .matched.no2.handover_started
+
+  - condition: |
+      {"node": "no3", "x.message": "state switched", "x.next_state.next": "HANDOVER"}
+
+  - condition: |
+      {"node": "no3", "x.message": {"$regex": "handover y .* finished" }}
+    registers:
+      - assign: .matched.no3.handover_finished
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no3.handover_finished._id }}"}, "node": "no3", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
+    registers:
+      - assign: .matched.no3.in_consensus
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no2.handover_started._id }}"}, "node": "no2", "x.message": "state switched", "x.next_state.next": "SYNCING"}
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no3.in_consensus._id }}"}, "node": "no3", "x.message": "new block saved"}
+    registers:
+      - assign: .matched.no3.new_block_in_consensus
+
+  - condition: |
+      {"node": "no2", "x.height": {"$gt": {{ .matched.no3.new_block_in_consensus.x.height }} }, "x.message": "new block saved"}
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no3.new_block_in_consensus._id }}"}, "node": "no2", "x.message": "checking finished", "x.is_finished": true, "x.allow_consensus": false}
+
+  - log: n2 starts handover for n3
+  - condition: |
+      $ sleep 40; {{ hostFile .self.host "cmd" }} \
+          --log.level=trace \
+          --log.format=json \
+          handover start \
+          "{{ .nodes.no3.address }}" \
+          "{{ .nodes.no3.network.publish}}#tls_insecure" \
+          "{{ .nodes.no3.privatekey }}" \
+          "{{ .network_id }}" \
+          "{{ .nodes.no2.network.publish}}#tls_insecure"
+    range:
+      - node: [no2]
+    if_condition_failed: "stop-contest"
+
+  - condition: |
+      {"node": "no2", "x.message": "handover y broker created"}
+
+  - condition: |
+      {"node": "no2", "x.message": "handover asked"}
+
+  - condition: |
+      {"node": "no3", "x.message": "handover x broker created"}
+    registers:
+      - assign: .matched.no3.handover_started
+
+  - condition: |
+      {"node": "no2", "x.message": "state switched", "x.next_state.next": "HANDOVER"}
+
+  - condition: |
+      {"node": "no2", "x.message": {"$regex": "handover y .* finished" }}
+    registers:
+      - assign: .matched.no2.handover_finished
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no2.handover_finished._id }}"}, "node": "no2", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
+    registers:
+      - assign: .matched.no2.in_consensus
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no3.handover_started._id }}"}, "node": "no3", "x.message": "state switched", "x.next_state.next": "SYNCING"}
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no3.in_consensus._id }}"}, "node": "no2", "x.message": "new block saved"}
+    registers:
+      - assign: .matched.no2.new_block_in_consensus
+
+  - condition: |
+      {"node": "no3", "x.height": {"$gt": {{ .matched.no2.new_block_in_consensus.x.height }} }, "x.message": "new block saved"}
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no2.new_block_in_consensus._id }}"}, "node": "no3", "x.message": "checking finished", "x.is_finished": true, "x.allow_consensus": false}

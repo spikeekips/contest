@@ -1500,7 +1500,6 @@ linters:
     - asciicheck
     - bidichk
     - deadcode
-    - depguard
     - dogsled
     - dupl
     - durationcheck
@@ -1573,6 +1572,8 @@ linters:
     - cyclop
     - gocyclo
     - nosnakecase
+    - depguard
+    - tagalign
 
   # Enable presets.
   # https://golangci-lint.run/usage/linters

@@ -40,7 +40,8 @@ var CLI struct { //nolint:govet //...
 		Load launchcmd.KeyLoadCommand `cmd:"" help:"load key"`
 		Sign launchcmd.KeySignCommand `cmd:"" help:"sign"`
 	} `cmd:"" help:"key"`
-	Version struct{} `cmd:"" help:"version"`
+	Handover launchcmd.HandoverCommands `cmd:""`
+	Version  struct{}                   `cmd:"" help:"version"`
 	//revive:enable:nested-structs
 }
 
