@@ -154,7 +154,7 @@ func (cmd *runCommand) closeHosts(ctx context.Context) error {
 		}
 	}
 
-	worker := util.NewErrgroupWorker(ctx, int64(cmd.hosts.Len()))
+	worker, _ := util.NewErrgroupWorker(ctx, int64(cmd.hosts.Len()))
 	defer worker.Close()
 
 	_ = cmd.hosts.Traverse(func(host contest.Host) (bool, error) {

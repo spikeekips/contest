@@ -9,9 +9,9 @@ import (
 
 	dockerTypes "github.com/docker/docker/api/types"
 	dockerstdcopy "github.com/docker/docker/pkg/stdcopy"
-	"github.com/nxadm/tail"
 	"github.com/pkg/errors"
 	contest "github.com/spikeekips/contest2"
+	"github.com/spikeekips/mitum/util"
 )
 
 type logFile struct {
@@ -19,7 +19,7 @@ type logFile struct {
 	stderr io.WriteCloser
 }
 
-func (cmd *runCommand) newLogFile(ctx context.Context, alias string) (io.WriteCloser, io.WriteCloser, error) {
+func (cmd *runCommand) newLogFile(_ context.Context, alias string) (io.WriteCloser, io.WriteCloser, error) {
 	lf, _, err := cmd.logFiles.GetOrCreate(alias, func() (*logFile, error) {
 		outfname := filepath.Join(cmd.basedir, alias+".stdout.log")
 		errfname := filepath.Join(cmd.basedir, alias+".stderr.log")
@@ -29,25 +29,24 @@ func (cmd *runCommand) newLogFile(ctx context.Context, alias string) (io.WriteCl
 			return nil, errors.WithStack(err)
 		}
 
-		outt, err := tail.TailFile(outfname, tail.Config{Follow: true})
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-
 		errf, err := os.OpenFile(errfname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
 
-		errt, err := tail.TailFile(errfname, tail.Config{Follow: true})
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-
-		go cmd.savetail(ctx, alias, outt, false)
-		go cmd.savetail(ctx, alias, errt, true)
-
-		return &logFile{stdout: outf, stderr: errf}, nil
+		return &logFile{
+			stdout: &containerLogFile{
+				logch: cmd.logch,
+				f:     outf,
+				alias: alias,
+			},
+			stderr: &containerLogFile{
+				logch:    cmd.logch,
+				f:        errf,
+				alias:    alias,
+				isstderr: true,
+			},
+		}, nil
 	})
 	if err != nil {
 		return nil, nil, err
@@ -90,40 +89,59 @@ func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) erro
 	return nil
 }
 
-func (cmd *runCommand) savetail(ctx context.Context, alias string, t *tail.Tail, stderr bool) {
-	var stopOnce sync.Once
+type containerLogFile struct {
+	f     io.WriteCloser
+	logch chan contest.LogEntry
+	alias string
+	rem   []byte
+	sync.Mutex
+	isstderr bool
+}
 
-end:
-	for {
-		select {
-		case <-ctx.Done():
-			stopOnce.Do(func() {
-				_ = t.Stop()
-			})
-		case l, ok := <-t.Lines:
-			if !ok {
-				break end
-			}
+func (f *containerLogFile) Write(b []byte) (int, error) {
+	if len(b) < 1 {
+		return 0, nil
+	}
 
-			if l.Err != nil {
-				cmd.logch <- contest.NewInternalLogEntry("tail error", l.Err)
-			}
+	f.Lock()
+	defer f.Unlock()
 
-			if len(l.Text) < 1 {
-				continue end
-			}
+	n, err := f.f.Write(b)
+	if err != nil {
+		return n, errors.WithStack(err)
+	}
 
-			text := l.Text
-			if e := log.Trace(); e.Enabled() {
-				e.Str("node", alias).Str("text", text).Bool("stderr", stderr).Msg("new log text")
-			}
+	left, _ := contest.BytesLines(b, func(l []byte) error {
+		if len(f.rem) > 0 {
+			l = util.ConcatBytesSlice(f.rem, l)
 
-			switch entry, err := contest.NewNodeLogEntry(alias, stderr, []byte(text)); {
+			f.rem = nil
+		}
+
+		if e := log.Trace(); e.Enabled() {
+			e.Str("node", f.alias).Str("text", string(l)).Bool("stderr", f.isstderr).Msg("new log text")
+		}
+
+		if len(l) > 0 {
+			switch entry, err := contest.NewNodeLogEntry(f.alias, f.isstderr, l); {
 			case err != nil:
-				log.Error().Err(err).Str("node", alias).Str("text", text).Msg("wrong node log")
+				log.Error().Err(err).Str("node", f.alias).Str("text", string(l)).Msg("wrong log")
 			default:
-				cmd.logch <- entry
+				f.logch <- entry
 			}
 		}
-	}
+
+		return nil
+	})
+
+	f.rem = util.ConcatBytesSlice(f.rem, left)
+
+	return n, nil
+}
+
+func (f *containerLogFile) Close() error {
+	f.Lock()
+	defer f.Unlock()
+
+	return errors.WithStack(f.f.Close())
 }

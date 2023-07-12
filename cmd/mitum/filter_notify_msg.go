@@ -61,32 +61,43 @@ func PFilterNotifyMsgFunc(ctx context.Context) (context.Context, error) {
 	log.Log().Debug().Str("script", script).Msg("`filterNotifyMsg` loaded from design")
 
 	return context.WithValue(ctx, launch.FilterMemberlistNotifyMsgFuncContextKey,
-		quicmemberlist.FilterNotifyMsgFunc(filterNotifyMsgFunc(vm, caller, oldfilternotifymsg)),
+		quicmemberlist.FilterNotifyMsgFunc(filterNotifyMsgFunc(vm, caller, oldfilternotifymsg, mlog)),
 	), nil
 }
 
-func filterNotifyMsgFunc(vm *goja.Runtime, f goja.Callable, old quicmemberlist.FilterNotifyMsgFunc) quicmemberlist.FilterNotifyMsgFunc {
+func filterNotifyMsgFunc(vm *goja.Runtime, f goja.Callable, old quicmemberlist.FilterNotifyMsgFunc, log *logging.Logging) quicmemberlist.FilterNotifyMsgFunc {
 	var lock sync.Mutex
 
 	return func(i interface{}) (bool, error) {
 		lock.Lock()
 		defer lock.Unlock()
 
+		l := log.Log().With().Interface("m", i).Logger()
+
+		l.Debug().Msg("trying to filter")
+		defer l.Debug().Msg("filter done")
+
 		b, err := util.MarshalJSON(i)
 		if err != nil {
+			l.Error().Err(err).Msg("marshal")
 			return true, err
 		}
 
 		var m map[string]interface{}
 
 		if err := util.UnmarshalJSON(b, &m); err != nil {
+			l.Error().Err(err).Msg("unmarshal")
 			return true, err
 		}
 
+		l.Debug().Msg("run filter")
 		res, err := f(goja.Undefined(), vm.ToValue(m))
 		if err != nil {
+			l.Error().Err(err).Msg("run filter")
 			return true, errors.WithStack(err)
 		}
+
+		l.Debug().Msg("run filter done")
 
 		switch t := res.Export().(type) {
 		case bool:

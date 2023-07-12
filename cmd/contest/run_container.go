@@ -342,7 +342,7 @@ func (cmd *runCommand) collectPprofs() {
 		return
 	}
 
-	worker := util.NewDistributeWorker(context.Background(), int64(cmd.nodes.Len()), nil)
+	worker, _ := util.NewDistributeWorker(context.Background(), int64(cmd.nodes.Len()), nil)
 	defer worker.Close()
 
 	cmd.nodes.Traverse(func(_ string, info nodeInfo) bool {

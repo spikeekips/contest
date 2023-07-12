@@ -6,12 +6,12 @@ require (
 	github.com/alecthomas/kong v0.7.1
 	github.com/docker/docker v24.0.2+incompatible
 	github.com/docker/go-connections v0.4.0
-	github.com/nxadm/tail v1.4.8
 	github.com/oleksandr/conditions v0.0.0-20170913191404-8ed8af13bdec
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/sftp v1.13.5
 	github.com/rs/zerolog v1.29.1
 	github.com/spikeekips/mitum v0.0.0-20220114011226-d18fa4bf4d4d
+	github.com/stretchr/testify v1.8.4
 	go.mongodb.org/mongo-driver v1.11.7
 	go.uber.org/automaxprocs v1.5.2
 	golang.org/x/crypto v0.10.0
@@ -40,7 +40,6 @@ require (
 	github.com/docker/distribution v2.8.2+incompatible // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/fatih/color v1.15.0 // indirect
-	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.0 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
@@ -80,6 +79,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
+	github.com/nxadm/tail v1.4.8 // indirect
 	github.com/oklog/ulid/v2 v2.1.0 // indirect
 	github.com/onsi/ginkgo/v2 v2.11.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
@@ -91,7 +91,6 @@ require (
 	github.com/redis/go-redis/v9 v9.0.5 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
-	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
@@ -106,7 +105,6 @@ require (
 	golang.org/x/sys v0.9.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.10.0 // indirect
-	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gotest.tools/v3 v3.2.0 // indirect
 )
 

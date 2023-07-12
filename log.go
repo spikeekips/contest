@@ -446,36 +446,42 @@ func (w *WatchLogs) register(record interface{}, register ScenarioRegister) erro
 func (w *WatchLogs) saveLogs(ctx context.Context, ch chan LogEntry) {
 	var entries []LogEntry
 
-	ticker := time.NewTicker(100 * time.Millisecond)
+	save := func() {
+		if len(entries) < 1 {
+			return
+		}
+
+		if err := w.insertLogEntriesFunc(ctx, entries); err != nil {
+			log.Error().Err(err).Msg("failed to save logs")
+		}
+
+		entries = nil
+	}
+
+	ticker := time.NewTicker(time.Millisecond * 33)
 	defer ticker.Stop()
 
 end:
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			break end
 		case e, notclosed := <-ch:
 			if !notclosed {
 				break end
 			}
 
 			entries = append(entries, e)
-		case <-ticker.C:
-			if len(entries) > 0 {
-				if err := w.insertLogEntriesFunc(ctx, entries); err != nil {
-					log.Error().Err(err).Msg("failed to save logs")
-				}
 
-				entries = nil
+			if len(entries) > 33 { //nolint:gomnd //...
+				save()
 			}
+		case <-ticker.C:
+			save()
 		}
 	}
 
-	if len(entries) > 0 {
-		if err := w.insertLogEntriesFunc(ctx, entries); err != nil {
-			log.Error().Err(err).Msg("failed to save logs")
-		}
-	}
+	save()
 }
 
 func (w *WatchLogs) ifConditionFailed(ctx context.Context, scenario ExpectScenario) error {

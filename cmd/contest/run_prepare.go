@@ -141,7 +141,7 @@ func (cmd *runCommand) prepareHosts() error {
 		return e.Wrap(err)
 	}
 
-	worker := util.NewErrgroupWorker(context.Background(), int64(cmd.hosts.Len()))
+	worker, _ := util.NewErrgroupWorker(context.Background(), int64(cmd.hosts.Len()))
 	defer worker.Close()
 
 	_ = cmd.hosts.Traverse(func(host contest.Host) (bool, error) {

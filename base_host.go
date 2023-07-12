@@ -105,7 +105,7 @@ func (h *baseHost) cleanContainers(remove bool) error { //revive:disable-line:fl
 
 	if err := util.RunErrgroupWorker(
 		context.Background(),
-		uint64(len(cids)),
+		int64(len(cids)),
 		func(ctx context.Context, i, _ uint64) error {
 			cid := cids[i]
 

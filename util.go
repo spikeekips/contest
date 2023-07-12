@@ -1,6 +1,7 @@
 package contest
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/spikeekips/mitum/util"
@@ -57,4 +58,26 @@ func (bi BuildInfo) String() string {
 		bi.MitumVersion, bi.MitumBranch, bi.MitumCommit,
 		bi.BuildTime,
 	)
+}
+
+func BytesLines(b []byte, callback func([]byte) error) (left []byte, _ error) {
+	if len(b) < 1 {
+		return nil, nil
+	}
+
+	for {
+		switch i := bytes.IndexByte(b, '\n'); {
+		case i < 0:
+			return b, nil
+		default:
+			if err := callback(b[:i]); err != nil {
+				return nil, err
+			}
+
+			b = b[i+1:] //revive:disable-line:modifies-parameter
+			if len(b) < 1 {
+				return nil, nil
+			}
+		}
+	}
 }
