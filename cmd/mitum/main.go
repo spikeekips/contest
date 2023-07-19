@@ -7,7 +7,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/pkg/errors"
-	contest "github.com/spikeekips/contest2"
+	"github.com/spikeekips/contest"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/launch"
 	launchcmd "github.com/spikeekips/mitum/launch/cmd"

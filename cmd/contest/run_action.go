@@ -5,7 +5,7 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/pkg/errors"
-	contest "github.com/spikeekips/contest2"
+	"github.com/spikeekips/contest"
 )
 
 func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction) error {

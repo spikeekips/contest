@@ -1,4 +1,4 @@
-module github.com/spikeekips/contest2
+module github.com/spikeekips/contest
 
 go 1.20
 
@@ -109,5 +109,3 @@ require (
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gotest.tools/v3 v3.2.0 // indirect
 )
-
-replace github.com/spikeekips/mitum => /workspace/mitum/src

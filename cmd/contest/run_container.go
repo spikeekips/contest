@@ -15,7 +15,7 @@ import (
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	contest "github.com/spikeekips/contest2"
+	"github.com/spikeekips/contest"
 	"github.com/spikeekips/mitum/util"
 	"go.mongodb.org/mongo-driver/bson"
 )

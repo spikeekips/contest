@@ -10,7 +10,7 @@ import (
 	dockerTypes "github.com/docker/docker/api/types"
 	dockerstdcopy "github.com/docker/docker/pkg/stdcopy"
 	"github.com/pkg/errors"
-	contest "github.com/spikeekips/contest2"
+	"github.com/spikeekips/contest"
 	"github.com/spikeekips/mitum/util"
 )
 

@@ -11,7 +11,7 @@ import (
 	dockerClient "github.com/docker/docker/client"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	contest "github.com/spikeekips/contest2"
+	"github.com/spikeekips/contest"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 	"gopkg.in/yaml.v3"

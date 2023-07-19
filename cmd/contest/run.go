@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	contest "github.com/spikeekips/contest2"
+	"github.com/spikeekips/contest"
 	"github.com/spikeekips/mitum/util"
 	"go.mongodb.org/mongo-driver/bson"
 )

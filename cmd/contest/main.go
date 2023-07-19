@@ -7,7 +7,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	contest "github.com/spikeekips/contest2"
+	"github.com/spikeekips/contest"
 	"github.com/spikeekips/mitum/launch"
 	mitumlogging "github.com/spikeekips/mitum/util/logging"
 	_ "go.uber.org/automaxprocs"
