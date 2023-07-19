@@ -5,8 +5,8 @@ go 1.20
 require (
 	github.com/alecthomas/kong v0.7.1
 	github.com/arl/statsviz v0.5.2
-	github.com/dop251/goja v0.0.0-20230402114112-623f9dda9079
-	github.com/dop251/goja_nodejs v0.0.0-20230322100729-2550c7b6c124
+	github.com/dop251/goja v0.0.0-20230707174833-636fdf960de1
+	github.com/dop251/goja_nodejs v0.0.0-20230602164024-804a84515562
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.29.1
 	github.com/spikeekips/contest2 v0.0.0-00010101000000-000000000000
@@ -55,14 +55,14 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-hclog v1.5.0 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
-	github.com/hashicorp/go-msgpack v0.5.5 // indirect
+	github.com/hashicorp/go-msgpack v1.1.5 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.4 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.7 // indirect
 	github.com/hashicorp/go-secure-stdlib/strutil v0.1.2 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.2 // indirect
-	github.com/hashicorp/golang-lru v0.5.4 // indirect
+	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hashicorp/memberlist v0.5.1-0.20230206163934-e5eb6d78d6f2 // indirect
 	github.com/hashicorp/serf v0.10.1 // indirect

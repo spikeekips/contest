@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	dockerTypes "github.com/docker/docker/api/types"
@@ -27,12 +28,13 @@ type baseHost struct {
 	containers  *util.SingleLockedMap[string, string]
 	addr        *url.URL
 	files       map[string]string
+	ports       map[string]string
 	client      *dockerClient.Client
-	ports       *util.SingleLockedMap[string, string]
 	user        string
 	base        string
 	publishhost string
 	arch        elf.Machine
+	portsLock   sync.Mutex
 }
 
 func newBaseHost(base string, addr *url.URL, client *dockerClient.Client) (*baseHost, error) {
@@ -44,7 +46,7 @@ func newBaseHost(base string, addr *url.URL, client *dockerClient.Client) (*base
 		addr:       addr,
 		client:     client,
 		containers: util.NewSingleLockedMap[string, string](),
-		ports:      util.NewSingleLockedMap[string, string](),
+		ports:      map[string]string{},
 		files:      map[string]string{},
 	}
 
@@ -346,14 +348,31 @@ func (h *baseHost) freePort(
 	id, n string,
 	f func(n string) (port string, _ error),
 ) (string, error) {
-	i, _, err := h.ports.GetOrCreate(id, func() (string, error) {
-		return f(n)
-	})
-	if err != nil {
-		return "", err
+	h.portsLock.Lock()
+	defer h.portsLock.Unlock()
+
+	if p, found := h.ports[id]; found {
+		return p, nil
 	}
 
-	return i, nil
+	ports := map[string]struct{}{}
+
+	for i := range h.ports {
+		ports[h.ports[i]] = struct{}{}
+	}
+
+	for {
+		p, err := f(n)
+		if err != nil {
+			return "", err
+		}
+
+		if _, found := ports[p]; !found {
+			h.ports[id] = p
+
+			return p, nil
+		}
+	}
 }
 
 func (h *baseHost) addFile(name string, path string) {
