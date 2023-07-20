@@ -36,6 +36,7 @@ type RunCommand struct { //nolint:govet //...
 	Vault           string                `name:"vault" help:"privatekey path of vault"`
 	Discovery       []launch.ConnInfoFlag `help:"member discovery" placeholder:"connection info"`
 	Hold            launch.HeightFlag     `help:"hold consensus states" placeholder:"height"`
+	DryRun          bool                  `name:"dry-run" help:"check design and exit"`
 	exitf           func(error)
 	log             *zerolog.Logger
 	holded          bool
@@ -94,6 +95,15 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 
 	pps := launch.DefaultRunPS()
 
+	if cmd.DryRun {
+		_ = pps.POK(launch.PNameDesign).
+			PostAddOK("exit", func(pctx context.Context) (context.Context, error) {
+				log.Log().Debug().Msg("design ok")
+
+				return pctx, ps.ErrIgnoreLeft.WithStack()
+			})
+	}
+
 	_ = pps.POK(launch.PNameStorage).PostAddOK(ps.Name("check-hold"), cmd.pCheckHold)
 	_ = pps.POK(launch.PNameStates).PreAddOK(
 		ps.Name("when-new-block-saved-in-consensus-state-func"), cmd.pWhenNewBlockSavedInConsensusStateFunc)
@@ -115,7 +125,7 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 		}
 	}()
 
-	if err != nil {
+	if err != nil || cmd.DryRun {
 		return err
 	}
 
