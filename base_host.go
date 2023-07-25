@@ -196,7 +196,7 @@ func (h *baseHost) CreateContainer(
 	networkingConfig *network.NetworkingConfig,
 	name string,
 ) error {
-	_, err := h.containers.Set(name, func(i string, found bool) (string, error) {
+	_, _, err := h.containers.Set(name, func(i string, found bool) (string, error) {
 		if found {
 			return i, nil
 		}

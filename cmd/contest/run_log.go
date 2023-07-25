@@ -20,7 +20,7 @@ type logFile struct {
 }
 
 func (cmd *runCommand) newLogFile(_ context.Context, alias string) (io.WriteCloser, io.WriteCloser, error) {
-	lf, _, err := cmd.logFiles.GetOrCreate(alias, func() (*logFile, error) {
+	lf, _, _, err := cmd.logFiles.GetOrCreate(alias, func() (*logFile, error) {
 		outfname := filepath.Join(cmd.basedir, alias+".stdout.log")
 		errfname := filepath.Join(cmd.basedir, alias+".stderr.log")
 

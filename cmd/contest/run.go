@@ -95,8 +95,8 @@ func (cmd *runCommand) Run() error {
 
 	_ = w.SetLogging(mlogging)
 
-	cmd.nodes, _ = util.NewLockedMap[string, nodeInfo](1)
-	cmd.logFiles, _ = util.NewLockedMap[string, *logFile](1)
+	cmd.nodes, _ = util.NewLockedMap[string, nodeInfo](1, nil)
+	cmd.logFiles, _ = util.NewLockedMap[string, *logFile](1, nil)
 
 	go func() {
 		cmd.exitch <- <-w.Wait(ctx)
