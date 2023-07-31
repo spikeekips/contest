@@ -20,35 +20,44 @@ type logFile struct {
 }
 
 func (cmd *runCommand) newLogFile(_ context.Context, alias string) (io.WriteCloser, io.WriteCloser, error) {
-	lf, _, _, err := cmd.logFiles.GetOrCreate(alias, func() (*logFile, error) {
-		outfname := filepath.Join(cmd.basedir, alias+".stdout.log")
-		errfname := filepath.Join(cmd.basedir, alias+".stderr.log")
+	var lf *logFile
 
-		outf, err := os.OpenFile(outfname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
+	if err := cmd.logFiles.GetOrCreate(
+		alias,
+		func(i *logFile, _ bool) error {
+			lf = i
 
-		errf, err := os.OpenFile(errfname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
+			return nil
+		},
+		func() (*logFile, error) {
+			outfname := filepath.Join(cmd.basedir, alias+".stdout.log")
+			errfname := filepath.Join(cmd.basedir, alias+".stderr.log")
 
-		return &logFile{
-			stdout: &containerLogFile{
-				logch: cmd.logch,
-				f:     outf,
-				alias: alias,
-			},
-			stderr: &containerLogFile{
-				logch:    cmd.logch,
-				f:        errf,
-				alias:    alias,
-				isstderr: true,
-			},
-		}, nil
-	})
-	if err != nil {
+			outf, err := os.OpenFile(outfname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+
+			errf, err := os.OpenFile(errfname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+
+			return &logFile{
+				stdout: &containerLogFile{
+					logch: cmd.logch,
+					f:     outf,
+					alias: alias,
+				},
+				stderr: &containerLogFile{
+					logch:    cmd.logch,
+					f:        errf,
+					alias:    alias,
+					isstderr: true,
+				},
+			}, nil
+		},
+	); err != nil {
 		return nil, nil, err
 	}
 

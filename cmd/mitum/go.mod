@@ -9,7 +9,7 @@ require (
 	github.com/dop251/goja_nodejs v0.0.0-20230602164024-804a84515562
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.29.1
-	github.com/spikeekips/contest v0.0.0-00010101000000-000000000000
+	github.com/spikeekips/contest v0.0.0-20230719194559-840c22851a43
 	github.com/spikeekips/mitum v0.0.0-20220114011226-d18fa4bf4d4d
 	go.uber.org/automaxprocs v1.5.2
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
@@ -111,5 +111,3 @@ require (
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.10.0 // indirect
 )
-
-replace github.com/spikeekips/contest => /workspace/mitum/contest
