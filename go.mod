@@ -10,13 +10,13 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/sftp v1.13.5
 	github.com/rs/zerolog v1.29.1
-	github.com/spikeekips/mitum v0.0.0-20220114011226-d18fa4bf4d4d
+	github.com/spikeekips/mitum v0.0.0-20230811015530-1fbcacfe3cc8
 	github.com/stretchr/testify v1.8.4
 	go.mongodb.org/mongo-driver v1.11.7
 	go.uber.org/automaxprocs v1.5.2
-	golang.org/x/crypto v0.10.0
+	golang.org/x/crypto v0.12.0
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
-	golang.org/x/text v0.10.0
+	golang.org/x/text v0.12.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -103,7 +103,7 @@ require (
 	golang.org/x/mod v0.11.0 // indirect
 	golang.org/x/net v0.11.0 // indirect
 	golang.org/x/sync v0.3.0 // indirect
-	golang.org/x/sys v0.9.0 // indirect
+	golang.org/x/sys v0.11.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.10.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect

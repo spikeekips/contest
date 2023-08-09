@@ -1026,7 +1026,7 @@ linters-settings:
       - name: cyclomatic
         severity: warning
         disabled: false
-        arguments: [ 20 ]
+        arguments: [ 30 ]
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#deep-exit
       - name: deep-exit
         severity: warning

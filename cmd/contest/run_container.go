@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -113,14 +114,34 @@ func (cmd *runCommand) doRunNode( //revive:disable-line:cyclomatic
 ) error {
 	e := util.StringError("run node")
 
-	nargs := args
-
-	nargs = append(nargs,
+	var fargs []string
+	options := []string{
 		"--log.level", "debug",
 		"--log.format", "json",
 		"--log.out", "stdout",
-		"--log.out", "/host/"+alias+"-stdout-log.json",
-	)
+		"--log.out", "/host/" + alias + "-stdout-log.json",
+	}
+
+	var foundoption bool
+
+	for i := range args {
+		j := args[i]
+
+		if !foundoption && strings.HasPrefix(j, "--") {
+			foundoption = true
+		}
+
+		switch {
+		case foundoption:
+			options = append(options, j)
+		default:
+			fargs = append(fargs, j)
+		}
+	}
+
+	nargs := make([]string, len(fargs)+len(options))
+	copy(nargs, fargs)
+	copy(nargs[len(fargs):], options)
 
 	name := containerName(alias)
 

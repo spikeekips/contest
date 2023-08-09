@@ -28,6 +28,7 @@ type runCommand struct { //nolint:govet //...
 	Mongodb      string        `name:"mongodb" help:"mongodb uri" default:"${mongodb_uri}"`
 	Timeout      time.Duration `name:"timeout" help:"stop after timeout"`
 	PprofSeconds uint          `name:"pprof-seconds" help:"pprof trace seconds" default:"30"`
+	NodeArgs     []string      `name:"node-arg" help:"extra node args"`
 	db           *contest.Mongodb
 	basedir      string
 	design       contest.Design
@@ -74,6 +75,10 @@ func (cmd *runCommand) Run() error {
 	}()
 
 	cmd.logch = make(chan contest.LogEntry, 1<<13)
+
+	if len(cmd.NodeArgs) > 0 {
+		cmd.vars.Set(".cmd.node_args", cmd.NodeArgs)
+	}
 
 	w := contest.NewWatchLogs(
 		cmd.design.Expects,

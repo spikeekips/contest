@@ -9,6 +9,23 @@ import (
 )
 
 func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction) error {
+	mergeNodeArgs := func(args []string) ([]string, []string) {
+		var nodeArgs []string
+
+		switch i, found := cmd.vars.Value(".cmd.node_args"); {
+		case !found:
+		default:
+			j, ok := i.([]string)
+			if ok {
+				nodeArgs = j
+			}
+		}
+
+		args = append(args, nodeArgs...)
+
+		return nodeArgs, args
+	}
+
 	switch action.Type {
 	case "stop-contest":
 		var err error
@@ -23,10 +40,13 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 	case "init-nodes":
 		if err := cmd.rangeNodes(ctx, action,
 			func(ctx context.Context, host contest.Host, alias string, args []string) error {
+				nodeArgs, args := mergeNodeArgs(args)
+
 				log.Debug().
 					Str("host", host.Address()).
 					Str("alias", alias).
 					Strs("args", args).
+					Strs("node_args", nodeArgs).
 					Msg("run init-nodes")
 
 				return cmd.initNode(ctx, host, alias, args)
@@ -36,10 +56,13 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 	case "run-nodes":
 		if err := cmd.rangeNodes(ctx, action,
 			func(ctx context.Context, host contest.Host, alias string, args []string) error {
+				nodeArgs, args := mergeNodeArgs(args)
+
 				log.Debug().
 					Str("host", host.Address()).
 					Str("alias", alias).
 					Strs("args", args).
+					Strs("node_args", nodeArgs).
 					Msg("run run-nodes")
 
 				return cmd.runNode(ctx, host, alias, args)
