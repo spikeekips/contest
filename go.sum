@@ -346,8 +346,8 @@ github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529/go.mod h1:DxrIzT+xaE7yg
 github.com/sirupsen/logrus v1.2.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=
 github.com/sirupsen/logrus v1.4.2/go.mod h1:tLMulIdttU9McNUspp0xgXVQah82FyeX6MwdIuYE2rE=
 github.com/spf13/pflag v1.0.3/go.mod h1:DYY7MBk1bdzusC3SYhjObp+wFpr4gzcvqqNjLnInEg4=
-github.com/spikeekips/mitum v0.0.0-20230811015530-1fbcacfe3cc8 h1:7Z4LOVCP11+qIsuccq9TgtDGzKwYyhLlc7ddjv5Y5V8=
-github.com/spikeekips/mitum v0.0.0-20230811015530-1fbcacfe3cc8/go.mod h1:olfalY9IG2NT6NHWzjZSiLfYvSY2LQq3ZmWS3zaJuXo=
+github.com/spikeekips/mitum v0.0.0-20230815040005-937602ef9650 h1:RSGWIY6LWBUskX5Lf75E14zZ9Hn1EMwTTyQ6NloiQ7w=
+github.com/spikeekips/mitum v0.0.0-20230815040005-937602ef9650/go.mod h1:u4RihfHf6+MPTedm4cR/3xvCMLR//9AwxNniVYCvH5w=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.4.0/go.mod h1:YvHI0jy2hoMjB+UWwv71VJQ9isScKT/TqJzVSSt89Yw=
