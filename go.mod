@@ -10,7 +10,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/sftp v1.13.5
 	github.com/rs/zerolog v1.29.1
-	github.com/spikeekips/mitum v0.0.0-20230815040005-937602ef9650
+	github.com/spikeekips/mitum v0.0.0-20230817152523-3f97129d17c8
 	github.com/stretchr/testify v1.8.4
 	go.mongodb.org/mongo-driver v1.11.7
 	go.uber.org/automaxprocs v1.5.2
