@@ -1,4 +1,3 @@
-# - no0 and no3 has same address and keys
 # - no0, no1, no2 enter consensus
 # - no3 does not enter consensus; keep syncing
 # - 9 blocks later, no3 restarts
