@@ -110,7 +110,7 @@ func (h *Hosts) assignHost(cid string) Host {
 		return nil
 	}
 
-	if slices.Index[string](h.samehost, cid) >= 0 {
+	if slices.Index(h.samehost, cid) >= 0 {
 		for i := range h.samehost {
 			s := h.samehost[i]
 			if s == cid {

@@ -117,7 +117,7 @@ func proposerSelectFunc(vm *goja.Runtime, f goja.Callable) func(context.Context,
 				return nil, errors.Errorf("return value, expected string, but %T", v)
 			}
 
-			i := slices.IndexFunc[base.Node](nodes, func(n base.Node) bool {
+			i := slices.IndexFunc(nodes, func(n base.Node) bool {
 				return n.Address().String() == s
 			})
 

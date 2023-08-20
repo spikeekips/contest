@@ -2,8 +2,9 @@ package contest
 
 import (
 	"context"
-	"strings"
+	"fmt"
 
+	"github.com/FerretDB/FerretDB/ferretdb"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"go.mongodb.org/mongo-driver/bson"
@@ -29,6 +30,26 @@ var logEntryIndexModel = []mongo.IndexModel{
 	},
 }
 
+func RunFerretDB(ctx context.Context, sock, db string) error {
+	f, err := ferretdb.New(&ferretdb.Config{
+		Listener: ferretdb.ListenerConfig{
+			Unix: sock,
+		},
+		Handler:   "sqlite",
+		SQLiteURL: fmt.Sprintf("file://%s/", db),
+		// SQLiteURL: "file:./?mode=memory",
+	})
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	go func() {
+		_ = f.Run(ctx)
+	}()
+
+	return nil
+}
+
 type Mongodb struct {
 	client *mongo.Client
 	db     *mongo.Database
@@ -40,10 +61,6 @@ func NewMongodbFromURI(ctx context.Context, uri string) (*Mongodb, error) {
 	cs, err := connstring.Parse(uri)
 	if err != nil {
 		return nil, e.Wrap(err)
-	}
-
-	if len(cs.Database) < 1 {
-		return nil, e.WithMessage(err, "empty database")
 	}
 
 	db := &Mongodb{}
@@ -73,7 +90,7 @@ func (db *Mongodb) connect(ctx context.Context, cs connstring.ConnString) error 
 	db.client = client
 	db.db = client.Database(cs.Database)
 
-	return db.createIndices(ctx, mongodbColLogEntry, logEntryIndexModel, mongodbColLogEntry)
+	return db.createIndices(ctx, mongodbColLogEntry, logEntryIndexModel)
 }
 
 func (db *Mongodb) Close(ctx context.Context) error {
@@ -115,47 +132,27 @@ func (db *Mongodb) Find(ctx context.Context, query bson.M) (record map[string]in
 	}
 }
 
-func (db *Mongodb) Count(ctx context.Context, query bson.M) (int64, error) {
-	i, err := db.db.Collection(mongodbColLogEntry).CountDocuments(ctx, query, nil)
+func (db *Mongodb) Count(ctx context.Context, query bson.M) (count int64, _ error) {
+	// NOTE ferretdb does not support CountDocuments yet.
+	// i, err := db.db.Collection(mongodbColLogEntry).CountDocuments(ctx, query, nil)
+	cur, err := db.db.Collection(mongodbColLogEntry).Find(ctx, query)
+	if err != nil {
+		return count, errors.WithStack(err)
+	}
 
-	return i, errors.WithStack(err)
+	defer func() {
+		_ = cur.Close(ctx)
+	}()
+
+	for cur.Next(ctx) {
+		count++
+	}
+
+	return count, nil
 }
 
-func (db *Mongodb) createIndices(ctx context.Context, col string, models []mongo.IndexModel, prefix string) error {
+func (db *Mongodb) createIndices(ctx context.Context, col string, models []mongo.IndexModel) error {
 	iv := db.db.Collection(col).Indexes()
-
-	cursor, err := iv.List(ctx)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	var results []bson.M
-	if err = cursor.All(ctx, &results); err != nil {
-		return errors.WithStack(err)
-	}
-
-	var existings []string //nolint:prealloc //...
-
-	for _, r := range results {
-		name := r["name"].(string) //nolint:forcetypeassert //...
-		if !strings.HasPrefix(name, prefix) {
-			continue
-		}
-
-		existings = append(existings, name)
-	}
-
-	if len(existings) > 0 {
-		for _, name := range existings {
-			if _, err := iv.DropOne(ctx, name); err != nil {
-				return errors.WithStack(err)
-			}
-		}
-	}
-
-	if len(models) < 1 {
-		return nil
-	}
 
 	if _, err := iv.CreateMany(ctx, models); err != nil {
 		return errors.WithStack(err)

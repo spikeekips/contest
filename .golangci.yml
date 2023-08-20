@@ -550,6 +550,7 @@ linters-settings:
     # Default: []
     replace-allow-list:
       - github.com/spikeekips/mitum
+      - github.com/FerretDB/FerretDB
     # Allow to not explain why the version has been retracted in the `retract` directives.
     # Default: false
     retract-allow-no-explanation: false

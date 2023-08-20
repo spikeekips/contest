@@ -18,14 +18,11 @@ var (
 	DefaultRedisImage = "redis:latest"
 )
 
-var defaultMongodbURI = "mongodb://localhost:27017/contest_" + contestID
-
 type runCommand struct { //nolint:govet //...
 	BaseDir      string        `arg:"" name:"base_directory" help:"base directory"`
 	Design       string        `arg:"" name:"scenario" help:"scenario file" type:"existingfile"`
 	Hosts        []HostFlag    `arg:"" name:"host" help:"docker host"`
 	NodeBinaries []string      `name:"node-binary" help:"node binary files by architecture"`
-	Mongodb      string        `name:"mongodb" help:"mongodb uri" default:"${mongodb_uri}"`
 	Timeout      time.Duration `name:"timeout" help:"stop after timeout"`
 	PprofSeconds uint          `name:"pprof-seconds" help:"pprof trace seconds" default:"30"`
 	NodeArgs     []string      `name:"node-arg" help:"extra node args"`
@@ -39,13 +36,14 @@ type runCommand struct { //nolint:govet //...
 	exitch       chan error
 	nodes        util.LockedMap[string, nodeInfo]
 	logFiles     util.LockedMap[string, *logFile]
+	mongodb      string
 }
 
 func (cmd *runCommand) Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if err := cmd.prepare(); err != nil {
+	if err := cmd.prepare(ctx); err != nil {
 		return err
 	}
 

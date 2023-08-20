@@ -31,7 +31,6 @@ var (
 var kongOptions = []kong.Option{
 	kong.Name("contest"),
 	kong.Vars{
-		"mongodb_uri":     defaultMongodbURI,
 		"log_out":         "stderr",
 		"log_format":      "terminal",
 		"log_level":       "debug",

@@ -3,32 +3,40 @@ package main
 import (
 	"context"
 	"debug/elf"
+	"fmt"
 	"net/netip"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/FerretDB/FerretDB/ferretdb"
 	dockerClient "github.com/docker/docker/client"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/contest"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
 var DefaultHostBase = "/tmp/contest"
 
-func (cmd *runCommand) prepare() error {
+func (cmd *runCommand) prepare(ctx context.Context) error {
 	if err := cmd.prepareFlags(); err != nil {
 		return err
 	}
 
-	if err := cmd.prepareLogs(); err != nil {
+	if err := cmd.prepareBase(); err != nil {
 		return err
 	}
 
-	if err := cmd.prepareBase(); err != nil {
+	if err := cmd.ferretDB(ctx); err != nil {
+		return err
+	}
+
+	if err := cmd.prepareLogs(); err != nil {
 		return err
 	}
 
@@ -88,7 +96,7 @@ func (cmd *runCommand) prepareFlags() error {
 		Str("design", cmd.Design).
 		Interface("hosts", cmd.Hosts).
 		Strs("node_binaries", cmd.NodeBinaries).
-		Str("mongodb", cmd.Mongodb).
+		Str("mongodb", cmd.mongodb).
 		Dur("timeout", cmd.Timeout).
 		Uint("pprof_seconds", cmd.PprofSeconds).
 		Msg("flags")
@@ -248,7 +256,7 @@ func (cmd *runCommand) prepareBase() error {
 }
 
 func (cmd *runCommand) prepareLogs() error {
-	db, err := contest.NewMongodbFromURI(context.Background(), cmd.Mongodb)
+	db, err := contest.NewMongodbFromURI(context.Background(), cmd.mongodb)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -524,4 +532,44 @@ func (*runCommand) checkImages(client *dockerClient.Client, images ...string) er
 	}
 
 	return nil
+}
+
+func (cmd *runCommand) ferretDB(ctx context.Context) error {
+	var loggerf func(...zap.Option) (*zap.Logger, error)
+
+	config := zap.NewProductionConfig()
+
+	switch mlogging.Log().GetLevel() {
+	case zerolog.TraceLevel:
+		config.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+
+		loggerf = config.Build
+	case zerolog.DebugLevel:
+		config.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+
+		loggerf = config.Build
+	default:
+		loggerf = func(...zap.Option) (*zap.Logger, error) {
+			return zap.NewNop(), nil
+		}
+	}
+
+	l, err := loggerf()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	ferretdb.SetupLogger(l)
+
+	// FIXME address.Address of go.mongodb.org/mongo-driver/mongo can not handle
+	// uppercase unix socket name.
+	sock := filepath.Join(cmd.basedir, fmt.Sprintf("%s.sock", strings.ToLower(contestID)))
+	cmd.mongodb = fmt.Sprintf("mongodb://%s/contest", url.QueryEscape(sock))
+
+	db := filepath.Join(cmd.basedir, contestID)
+	if err := os.MkdirAll(db, 0o700); err != nil {
+		return errors.WithStack(err)
+	}
+
+	return contest.RunFerretDB(ctx, sock, db)
 }
