@@ -10,7 +10,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.30.0
 	github.com/spikeekips/contest v0.0.0-20230817152642-f1ca2999971e
-	github.com/spikeekips/mitum v0.0.0-20230820023218-de0ef87cc26f
+	github.com/spikeekips/mitum v0.0.0-20230827033459-e96e5ca20d30
 	go.uber.org/automaxprocs v1.5.3
 	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63
 	gopkg.in/yaml.v3 v3.0.1

@@ -29,9 +29,9 @@ var (
 var CLI struct { //nolint:govet //...
 	//revive:disable:nested-structs
 	launch.BaseFlags
-	Init    launchcmd.INITCommand `cmd:"" help:"init node"`
-	Run     RunCommand            `cmd:"" help:"run node"`
-	Storage launchcmd.Storage     `cmd:""`
+	Init    launchcmd.INITCommand    `cmd:"" help:"init node"`
+	Run     RunCommand               `cmd:"" help:"run node"`
+	Storage launchcmd.StorageCommand `cmd:""`
 	Network struct {
 		Client launchcmd.NetworkClientCommand `cmd:"" help:"network client"`
 	} `cmd:"" help:"network"`
