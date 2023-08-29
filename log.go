@@ -381,7 +381,12 @@ func (w *WatchLogs) evaluate(
 	case err != nil:
 		return left, false, errors.WithStack(err)
 	case !found:
-		return left, false, w.ifConditionFailed(ctx, current)
+		var errstring string
+		if j, isstring := i.(string); isstring {
+			errstring = j
+		}
+
+		return left, false, w.ifConditionFailed(ctx, current, errstring)
 	default:
 		ok = found
 
@@ -484,11 +489,11 @@ end:
 	save()
 }
 
-func (w *WatchLogs) ifConditionFailed(ctx context.Context, scenario ExpectScenario) error {
+func (w *WatchLogs) ifConditionFailed(ctx context.Context, scenario ExpectScenario, err string) error {
 	switch scenario.IfConditionFailed {
 	case IfConditionFailedNothing:
 	case IfConditionFailedStopContest:
-		return w.actionFunc(ctx, ScenarioAction{Type: "stop-contest"})
+		return w.actionFunc(ctx, ScenarioAction{Type: "stop-contest", Args: []string{err}})
 	}
 
 	return nil
@@ -555,10 +560,15 @@ func (c HostCommandConditionQuery) String() string {
 }
 
 func (c HostCommandConditionQuery) Find(context.Context) (out interface{}, ok bool, _ error) {
-	stdout, _, ok, err := c.host.RunCommand(c.cmd)
+	stdout, stderr, ok, err := c.host.RunCommand(c.cmd)
 	if err != nil {
 		return nil, false, err
 	}
 
-	return strings.TrimRight(stdout, "\n"), ok, nil
+	outstring := strings.TrimRight(stdout, "\n")
+	if !ok {
+		outstring += "\n\n" + strings.TrimRight(stderr, "\n")
+	}
+
+	return outstring, ok, nil
 }
