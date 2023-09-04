@@ -3,7 +3,7 @@ module github.com/spikeekips/contest
 go 1.20
 
 require (
-	github.com/FerretDB/FerretDB v1.8.0
+	github.com/FerretDB/FerretDB v1.9.0
 	github.com/alecthomas/kong v0.8.0
 	github.com/docker/docker v24.0.5+incompatible
 	github.com/docker/go-connections v0.4.0
@@ -26,7 +26,7 @@ require (
 	github.com/AlekSi/pointer v1.2.0 // indirect
 	github.com/Masterminds/semver/v3 v3.2.1 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
-	github.com/SAP/go-hdb v1.4.1 // indirect
+	github.com/SAP/go-hdb v1.4.2 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/beevik/ntp v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -58,7 +58,7 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/google/pprof v0.0.0-20230817174616-7a8ec2ada47b // indirect
-	github.com/google/uuid v1.3.0 // indirect
+	github.com/google/uuid v1.3.1 // indirect
 	github.com/hashicorp/consul/api v1.24.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
@@ -146,4 +146,4 @@ require (
 	modernc.org/token v1.1.0 // indirect
 )
 
-replace github.com/FerretDB/FerretDB => github.com/spikeekips/FerretDB v0.0.0-20230818063133-fda745bb4747
+replace github.com/FerretDB/FerretDB => github.com/spikeekips/FerretDB v0.0.0-20230902172343-871d69849572

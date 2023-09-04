@@ -33,14 +33,14 @@ type RunCommand struct { //nolint:govet //...
 	launch.DesignFlag
 	launch.DevFlags `embed:"" prefix:"dev."`
 	DebugFlags      `embed:"" prefix:"dev."`
-	Vault           string                `name:"vault" help:"privatekey path of vault"`
-	Discovery       []launch.ConnInfoFlag `help:"member discovery" placeholder:"connection info"`
-	Hold            launch.HeightFlag     `help:"hold consensus states" placeholder:"height"`
-	DryRun          bool                  `name:"dry-run" help:"check design and exit"`
-	exitf           func(error)
-	log             *zerolog.Logger
-	holded          bool
-	mux             *http.ServeMux
+	launch.PrivatekeyFlags
+	Discovery []launch.ConnInfoFlag `help:"member discovery" placeholder:"connection info"`
+	Hold      launch.HeightFlag     `help:"hold consensus states" placeholder:"height"`
+	DryRun    bool                  `name:"dry-run" help:"check design and exit"`
+	exitf     func(error)
+	log       *zerolog.Logger
+	holded    bool
+	mux       *http.ServeMux
 	//revive:enable:line-length-limit
 }
 
@@ -52,7 +52,7 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 
 	log.Log().Debug().
 		Interface("design", cmd.DesignFlag).
-		Interface("vault", cmd.Vault).
+		Interface("privatekey", cmd.Privatekey).
 		Interface("discovery", cmd.Discovery).
 		Interface("hold", cmd.Hold).
 		Interface("debug_http", cmd.DebugHTTP).
@@ -90,7 +90,7 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 	pctx = context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
 	pctx = context.WithValue(pctx, launch.DevFlagsContextKey, cmd.DevFlags)
 	pctx = context.WithValue(pctx, launch.DiscoveryFlagContextKey, cmd.Discovery)
-	pctx = context.WithValue(pctx, launch.VaultContextKey, cmd.Vault)
+	pctx = context.WithValue(pctx, launch.PrivatekeyFromContextKey, cmd.Privatekey)
 	//revive:enable:modifies-parameter
 
 	pps := launch.DefaultRunPS()

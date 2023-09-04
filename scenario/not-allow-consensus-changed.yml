@@ -173,10 +173,10 @@ expects:
   - log: set 'not-allow' for no3
 
   - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client set-allow-consensus \
+      $ {{ hostFile .self.host "cmd" }} network client node write \
           --log.format=json \
           --log.level=trace \
-          "{{ .nodes.no3.privatekey }}" "not-allow" "{{ .network_id }}" "{{ .nodes.no3.network.publish}}#tls_insecure"
+          "{{ .network_id }}" "{{ .nodes.no3.network.publish}}#tls_insecure" "{{ .nodes.no3.privatekey }}" states.allow_consensus false
     range:
       - node: [no3]
     if_condition_failed: "stop-contest"
@@ -204,10 +204,10 @@ expects:
   - log: set 'allow' for no3
   
   - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client set-allow-consensus \
+      $ {{ hostFile .self.host "cmd" }} network client node write \
           --log.format=json \
           --log.level=trace \
-          "{{ .nodes.no3.privatekey }}" "allow" "{{ .network_id }}" "{{ .nodes.no3.network.publish}}#tls_insecure"
+          "{{ .network_id }}" "{{ .nodes.no3.network.publish}}#tls_insecure" "{{ .nodes.no3.privatekey }}" states.allow_consensus true
     range:
       - node: [no3]
     if_condition_failed: "stop-contest"

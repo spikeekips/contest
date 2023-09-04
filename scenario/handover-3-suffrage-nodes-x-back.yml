@@ -184,9 +184,9 @@ expects:
           handover start \
           "{{ .nodes.no2.address }}" \
           "{{ .nodes.no2.network.publish}}#tls_insecure" \
-          "{{ .nodes.no2.privatekey }}" \
           "{{ .network_id }}" \
-          "{{ .nodes.no3.network.publish}}#tls_insecure"
+          "{{ .nodes.no3.network.publish}}#tls_insecure" \
+          "{{ .nodes.no2.privatekey }}"
     range:
       - node: [no3]
     if_condition_failed: "stop-contest"
@@ -240,9 +240,9 @@ expects:
           handover start \
           "{{ .nodes.no3.address }}" \
           "{{ .nodes.no3.network.publish}}#tls_insecure" \
-          "{{ .nodes.no3.privatekey }}" \
           "{{ .network_id }}" \
-          "{{ .nodes.no2.network.publish}}#tls_insecure"
+          "{{ .nodes.no2.network.publish}}#tls_insecure" \
+          "{{ .nodes.no3.privatekey }}"
     range:
       - node: [no2]
     if_condition_failed: "stop-contest"

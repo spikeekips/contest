@@ -116,9 +116,9 @@ expects:
           handover start \
           "{{ .nodes.no0.address }}" \
           "{{ .nodes.no0.network.publish}}#tls_insecure" \
-          "{{ .nodes.no1.privatekey }}" \
           "{{ .network_id }}" \
-          "{{ .nodes.no1.network.publish}}#tls_insecure"
+          "{{ .nodes.no1.network.publish}}#tls_insecure" \
+          "{{ .nodes.no1.privatekey }}"
     range:
       - node: [no1]
     if_condition_failed: "stop-contest"
