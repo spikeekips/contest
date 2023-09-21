@@ -100,7 +100,7 @@ expects:
           $ echo '{"fact": { "address": "{{ .nodes.no1.address }}", "publickey": "{{ .nodes.no1.publickey }}", "_hint": "suffrage-candidate-fact-v0.0.1" }, "_hint": "suffrage-candidate-operation-v0.0.1"}' | \
               {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no1.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no1.address }}" --token findme | \
               {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no0.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no0.address }}" | \
-              {{ hostFile .self.host "cmd" }} network client send-operation --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" --body=-
+              {{ hostFile .self.host "cmd" }} network client send-operation --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" "-"
       range:
         - node: [no0]
 
@@ -153,8 +153,8 @@ expects:
             $ op="{{ hostBase .self.host }}/{{ uuid }}.json"; echo '{"fact": {"candidate": "{{ .nodes.no1.address }}", "_hint": "suffrage-join-fact-v0.0.1", "start_height": {{ .matched.candidate_in_state.start }} }, "_hint": "suffrage-join-operation-v0.0.1"}' | \
                 {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no1.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no1.address }}" --token findme | \
                 {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no0.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no0.address }}" > "$op"; \
-                {{ hostFile .self.host "cmd" }} network client send-operation --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" --body="$op"; \
-                {{ hostFile .self.host "cmd" }} network client send-operation --log.level=trace "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" --body="$op"
+                {{ hostFile .self.host "cmd" }} network client send-operation --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" "$op"; \
+                {{ hostFile .self.host "cmd" }} network client send-operation --log.level=trace "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" "$op"
         range:
           - node: [no0]
        

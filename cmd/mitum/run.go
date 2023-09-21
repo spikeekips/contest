@@ -31,16 +31,17 @@ type DebugFlags struct {
 type RunCommand struct { //nolint:govet //...
 	//revive:disable:line-length-limit
 	launch.DesignFlag
-	launch.DevFlags `embed:"" prefix:"dev."`
-	DebugFlags      `embed:"" prefix:"dev."`
-	launch.PrivatekeyFlags
-	Discovery []launch.ConnInfoFlag `help:"member discovery" placeholder:"connection info"`
-	Hold      launch.HeightFlag     `help:"hold consensus states" placeholder:"height"`
-	DryRun    bool                  `name:"dry-run" help:"check design and exit"`
-	exitf     func(error)
-	log       *zerolog.Logger
-	holded    bool
-	mux       *http.ServeMux
+	launch.DevFlags        `embed:"" prefix:"dev."`
+	DebugFlags             `embed:"" prefix:"dev."`
+	launch.PrivatekeyFlags `group:"design"`
+	Discovery              []launch.ConnInfoFlag `help:"member discovery" placeholder:"connection info"`
+	Hold                   launch.HeightFlag     `help:"hold consensus states" placeholder:"height"`
+	DryRun                 bool                  `name:"dry-run" help:"check design and exit"`
+	launch.ACLFlags        `group:"design"`
+	exitf                  func(error)
+	log                    *zerolog.Logger
+	holded                 bool
+	mux                    *http.ServeMux
 	//revive:enable:line-length-limit
 }
 
@@ -52,13 +53,14 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 
 	log.Log().Debug().
 		Interface("design", cmd.DesignFlag).
-		Interface("privatekey", cmd.Privatekey).
+		Interface("privatekey", cmd.PrivatekeyFlags).
 		Interface("discovery", cmd.Discovery).
 		Interface("hold", cmd.Hold).
 		Interface("debug_http", cmd.DebugHTTP).
 		Interface("statsviz", cmd.Statsviz).
 		Interface("pprof", cmd.Pprof).
 		Interface("dev", cmd.DevFlags).
+		Interface("acl", cmd.ACLFlags).
 		Msg("flags")
 
 	cmd.log = log.Log()
@@ -90,7 +92,8 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 	pctx = context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
 	pctx = context.WithValue(pctx, launch.DevFlagsContextKey, cmd.DevFlags)
 	pctx = context.WithValue(pctx, launch.DiscoveryFlagContextKey, cmd.Discovery)
-	pctx = context.WithValue(pctx, launch.PrivatekeyFromContextKey, cmd.Privatekey)
+	pctx = context.WithValue(pctx, launch.PrivatekeyFlagsContextKey, cmd.PrivatekeyFlags)
+	pctx = context.WithValue(pctx, launch.ACLFlagsContextKey, cmd.ACLFlags)
 	//revive:enable:modifies-parameter
 
 	pps := launch.DefaultRunPS()

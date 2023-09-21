@@ -64,7 +64,7 @@ func main() {
 		return
 	}
 
-	l, err := launch.SetupLoggingFromFlags(cli.LoggingFlags)
+	l, _, err := launch.SetupLoggingFromFlags(cli.LoggingFlags)
 	if err != nil {
 		kctx.FatalIfErrorf(err)
 	}

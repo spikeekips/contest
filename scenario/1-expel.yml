@@ -163,7 +163,7 @@ expects:
             }' | \
              {{ hostFile .self.host "cmd" }} key sign {{ .nodes.no0.privatekey }} "{{ .network_id }}" - --node="{{ .nodes.no0.address}}" | \
              {{ hostFile .self.host "cmd" }} key sign {{ .nodes.no1.privatekey }} "{{ .network_id }}" - --node="{{ .nodes.no1.address}}" | \
-             {{ hostFile .self.host "cmd" }} network client send-operation --log.level=trace "{{ .network_id }}" --body=-  "{{ .nodes.no1.network.publish}}#tls_insecure"
+             {{ hostFile .self.host "cmd" }} network client send-operation --log.level=trace "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" "-"
         range:
           - node: [no1]
 
