@@ -15,42 +15,42 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-type ProposerSelector struct {
-	proposerSelector isaac.ProposerSelector
-	f                func(context.Context, base.Point, []base.Node) (base.Node, error)
-}
-
-func (p ProposerSelector) Select(ctx context.Context, point base.Point, nodes []base.Node, previousBlock util.Hash) (base.Node, error) {
-	switch n, err := p.f(ctx, point, nodes); {
-	case err != nil:
-		return nil, err
-	case n != nil:
-		return n, nil
-	default:
-		return p.proposerSelector.Select(ctx, point, nodes, previousBlock)
+func newProposerSelectFunc(
+	d isaac.ProposerSelectFunc,
+	f func(context.Context, base.Point, []base.Node) (base.Node, error),
+) isaac.ProposerSelectFunc {
+	return func(ctx context.Context, point base.Point, nodes []base.Node, previousBlock util.Hash) (base.Node, error) {
+		switch n, err := f(ctx, point, nodes); {
+		case err != nil:
+			return nil, err
+		case n != nil:
+			return n, nil
+		default:
+			return d(ctx, point, nodes, previousBlock)
+		}
 	}
 }
 
-func PProposerSelector(ctx context.Context) (context.Context, error) {
+func PProposerSelector(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var designString string
-	var proposerSelector isaac.ProposerSelector
+	var proposerSelectFunc isaac.ProposerSelectFunc
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		launch.LoggingContextKey, &log,
 		launch.DesignStringContextKey, &designString,
-		launch.ProposerSelectorContextKey, &proposerSelector,
+		launch.ProposerSelectFuncContextKey, &proposerSelectFunc,
 	); err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
 	var script string
 
 	switch i, err := loadScript(designString, "proposer-selector"); {
 	case errors.Is(err, util.ErrNotFound):
-		return ctx, nil
+		return pctx, nil
 	case err != nil:
-		return ctx, err
+		return pctx, err
 	default:
 		script = i
 	}
@@ -61,26 +61,26 @@ func PProposerSelector(ctx context.Context) (context.Context, error) {
 
 	vm, err := prepareJAVM(mlog)
 	if err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
 	if _, err := vm.RunString(script); err != nil {
-		return ctx, errors.WithStack(err)
+		return pctx, errors.WithStack(err)
 	}
 
 	caller, ok := goja.AssertFunction(vm.Get("selectProposer"))
 	if !ok {
-		return ctx, errors.Errorf("function, `selectProposer` not found in `proposer-selector` design")
+		return pctx, errors.Errorf("function, `selectProposer` not found in `proposer-selector` design")
 	}
 
 	log.Log().Debug().Str("script", script).Msg("`selectProposer` loaded from design")
 
-	p := ProposerSelector{proposerSelector: proposerSelector, f: proposerSelectFunc(vm, caller)}
+	f := newProposerSelectFunc(proposerSelectFunc, vmProposerSelectFunc(vm, caller))
 
-	return context.WithValue(ctx, launch.ProposerSelectorContextKey, p), nil
+	return context.WithValue(pctx, launch.ProposerSelectFuncContextKey, isaac.ProposerSelectFunc(f)), nil
 }
 
-func proposerSelectFunc(vm *goja.Runtime, f goja.Callable) func(context.Context, base.Point, []base.Node) (base.Node, error) {
+func vmProposerSelectFunc(vm *goja.Runtime, f goja.Callable) func(context.Context, base.Point, []base.Node) (base.Node, error) {
 	var lock sync.Mutex
 
 	return func(_ context.Context, point base.Point, nodes []base.Node) (base.Node, error) {
