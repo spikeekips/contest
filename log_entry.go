@@ -1,6 +1,9 @@
 package contest
 
 import (
+	"fmt"
+	"reflect"
+	"regexp"
 	"time"
 
 	"github.com/pkg/errors"
@@ -82,21 +85,16 @@ func NewNodeLogEntryWithInterface(node string, stderr bool, i interface{}) (entr
 func NewNodeLogEntry(node string, stderr bool, b []byte) (entry NodeLogEntry, _ error) {
 	var x bson.Raw
 
-	if len(b) > 0 {
-		var u map[string]interface{}
-
-		switch err := util.UnmarshalJSON(b, &u); {
-		case err == nil:
-		default:
-			u = bson.M{"text": string(b)}
-		}
-
-		i, err := bson.Marshal(u)
+	switch i, err := bsonStripNestedArray(b); {
+	case err == nil:
+		x = i
+	default:
+		j, err := bson.Marshal(bson.M{"text": string(b)})
 		if err != nil {
 			return entry, errors.WithStack(err)
 		}
 
-		x = i
+		x = j
 	}
 
 	return NodeLogEntry{
@@ -128,4 +126,83 @@ func (e NodeLogEntry) MarshalBSON() ([]byte, error) {
 	})
 
 	return b, errors.WithStack(err)
+}
+
+var reNestedArrayStart = regexp.MustCompile(`\[[\s]*\[`)
+
+func bsonStripNestedArray(b []byte) (bson.Raw, error) {
+	i, err := stripNestedArray(b)
+	if err != nil {
+		return nil, err
+	}
+
+	j, err := bson.Marshal(i)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return bson.Raw(j), nil
+}
+
+// stripNestedArray removes nested slice; ferretdb can not handle nested array.
+// For more details, see https://docs.ferretdb.io/diff/ .
+func stripNestedArray(b []byte) (interface{}, error) {
+	var u map[string]interface{}
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return nil, err
+	}
+
+	if reNestedArrayStart.FindIndex(b) == nil {
+		return u, nil
+	}
+
+	return convertNestedArray(reflect.ValueOf(u), false).Interface(), nil
+}
+
+func convertNestedArray(v reflect.Value, nested bool) reflect.Value { //revive:disable-line:flag-parameter
+	vi := reflect.ValueOf(v.Interface())
+
+	switch vi.Kind() {
+	case reflect.Slice, reflect.Array:
+		if vi.Len() < 1 {
+			return vi
+		}
+
+		if nested {
+			m := map[string]interface{}{}
+
+			for i := 0; i < vi.Len(); i++ {
+				m[fmt.Sprintf("%d", i)] = convertNestedArray(vi.Index(i), false).Interface()
+			}
+
+			return reflect.ValueOf(m)
+		}
+
+		a := make([]interface{}, vi.Len())
+		for i := 0; i < vi.Len(); i++ {
+			a[i] = convertNestedArray(vi.Index(i), true).Interface()
+		}
+
+		return reflect.ValueOf(a)
+	case reflect.Map:
+		if vi.Len() < 1 {
+			return vi
+		}
+
+		mv := reflect.MakeMapWithSize(
+			reflect.MapOf(vi.Type().Key(), vi.Type().Elem()),
+			vi.Len(),
+		)
+
+		keys := vi.MapKeys()
+
+		for i := range keys {
+			j := convertNestedArray(vi.MapIndex(keys[i]), false)
+			mv.SetMapIndex(keys[i], j)
+		}
+
+		return mv
+	default:
+		return vi
+	}
 }
