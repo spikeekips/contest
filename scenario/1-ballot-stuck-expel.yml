@@ -259,7 +259,7 @@ expects:
       $ state="{{ hostBase .self.host }}/expel-state.json"; \
         {{ hostFile .self.host "cmd" }} network client state --log.level=trace \
              "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" 'suffrage' > $state && \
-        cat $state && \
+        cat $state > /dev/stderr && \
         cat $state | jq -e -c '(.value.nodes | length) == 2' && \
         cat $state | jq -e -c '.value.nodes[] | select( (.address == "{{ .nodes.no0.address }}") and (.publickey == "{{ .nodes.no0.publickey }}"))' && \
         cat $state | jq -e -c '.value.nodes[] | select( (.address == "{{ .nodes.no1.address }}") and (.publickey == "{{ .nodes.no1.publickey }}"))'
@@ -285,22 +285,28 @@ expects:
       - node: [no0, no1]
 
   - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" | \
-        jq -e -c 'select(.consensus.state == "CONSENSUS")'
+      $ output="{{ hostBase .self.host }}/no0-nodeinfo.json"; \
+        {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" > $output && \
+        cat $output > /dev/stderr && \
+        cat $output | jq -e -c 'select(.consensus.state == "CONSENSUS")'
     interval: 2s
     range:
       - node: [no1]
 
   - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" | \
-        jq -e -c 'select(.consensus.state == "CONSENSUS")'
+      $ output="{{ hostBase .self.host }}/no1-nodeinfo.json"; \
+        {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" > $output && \
+        cat $output > /dev/stderr && \
+        cat $output | jq -e -c 'select(.consensus.state == "CONSENSUS")'
     interval: 2s
     range:
       - node: [no1]
 
   - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" | \
-        jq -e -c 'select(.consensus.state == "SYNCING")'
+      $ output="{{ hostBase .self.host }}/no2-nodeinfo.json"; \
+        {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" > $output && \
+        cat $output > /dev/stderr && \
+        cat $output | jq -e -c 'select(.consensus.state == "SYNCING")'
     interval: 2s
     range:
       - node: [no1]
