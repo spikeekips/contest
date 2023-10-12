@@ -145,7 +145,7 @@ expects:
           - --discovery
           - "{{ .nodes.no0.network.publish }}#tls_insecure"
           - --dev.allow-risky-threshold
-          - --dev.delay-syncer=20s
+          - --dev.delay-syncer=1m
           - --dev.allow-consensus
         range:
           - node: [no2]
@@ -165,8 +165,10 @@ expects:
 
   # check no2 is still in syncing state
   - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" | \
-        jq -e -c 'select(.consensus.state == "SYNCING")'
+      $ output="{{ hostBase .self.host }}/no2-nodeinfo.json"; \
+        {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" > $output && \
+        cat $output > /dev/stderr && \
+        cat $output | jq -e -c 'select(.consensus.state == "SYNCING")'
     range:
       - node: [no2]
 
@@ -181,7 +183,9 @@ expects:
       - node: [no0, no1]
 
   - condition: |
-      $ {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" | \
-        jq -e -c 'select(.consensus.state == "SYNCING")'
+      $ output="{{ hostBase .self.host }}/no2-nodeinfo.json"; \
+        {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" > $output && \
+        cat $output > /dev/stderr && \
+        cat $output | jq -e -c 'select(.consensus.state == "SYNCING")'
     range:
       - node: [no2]
