@@ -1,6 +1,8 @@
 module github.com/spikeekips/contest
 
-go 1.20
+go 1.21
+
+toolchain go1.21.3
 
 require (
 	github.com/FerretDB/FerretDB v1.9.0
@@ -121,9 +123,9 @@ require (
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a // indirect
 	github.com/zeebo/blake3 v0.2.3 // indirect
-	go.opentelemetry.io/otel v1.17.0 // indirect
-	go.opentelemetry.io/otel/metric v1.17.0 // indirect
-	go.opentelemetry.io/otel/trace v1.17.0 // indirect
+	go.opentelemetry.io/otel v1.18.0 // indirect
+	go.opentelemetry.io/otel/metric v1.18.0 // indirect
+	go.opentelemetry.io/otel/trace v1.18.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.4.0 // indirect
 	golang.org/x/mod v0.12.0 // indirect
@@ -146,4 +148,4 @@ require (
 	modernc.org/token v1.1.0 // indirect
 )
 
-replace github.com/FerretDB/FerretDB => github.com/spikeekips/FerretDB v0.0.0-20230921142259-f8d8b3bcf074
+replace github.com/FerretDB/FerretDB => github.com/spikeekips/FerretDB v0.0.0-20231010042047-217939f77234
