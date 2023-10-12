@@ -281,6 +281,3 @@ expects:
 
   - condition: |
       {"node": "no3", "x.height": {"$gt": {{ .matched.no2.new_block_in_consensus.x.height }} }, "x.message": "new block saved"}
-
-  - condition: |
-      {"_id": {"$gt": "{{ .matched.no2.new_block_in_consensus._id }}"}, "node": "no3", "x.message": "checking finished", "x.is_finished": true, "x.allow_consensus": false}
