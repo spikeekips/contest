@@ -1,0 +1,189 @@
+# empty proposal -> no block
+# - 3 nodes: no0, no1, no2
+# - 3 nodes can do consensus
+# - all nodes are in suffrage from genesis
+# - empty_proposal_no_block=true from genesis
+# - all nodes will be in consensus
+# - all nodes no blocks
+# - new network policy operation: empty_proposal_no_block=false
+# - all nodes creates blocks
+
+---
+ignore_abnormal_container_exit: true
+
+vars:
+  .network_id: mitum contest; Sat 26 Dec 2020 05:29:13 AM KST
+
+designs:
+  common: |
+    {{ setVar ".self.privatekey" newKey }}
+    {{ setVar ".self.publickey" .self.privatekey.Publickey }}
+
+    address: {{ setgetVar ".self.address" ( printf "%ssas" .self.alias ) }}
+    privatekey: {{ .self.privatekey }}
+    #publickey: {{ .self.privatekey.Publickey }}
+    network_id: {{ .network_id }}
+    network:
+      bind: 0.0.0.0:{{ freePort .self.host (print "node-" .self.alias) "udp" }}
+      publish: {{ setgetVar ".self.network.publish" ( print .self.host.PublishHost ":" ( freePort .self.host (print "node-" .self.alias) "udp" ) ) }}
+      tls_insecure: true
+    storage:
+      base: /data
+    ballot-stuck-resolver: dummy
+
+  genesis: |
+      facts:
+        - _hint: suffrage-genesis-join-fact-v0.0.1
+          nodes:
+            - _hint: node-v0.0.1
+              address: {{ .nodes.no0.address }}
+              publickey: {{ .nodes.no0.publickey }}
+            - _hint: node-v0.0.1
+              address: {{ .nodes.no1.address }}
+              publickey: {{ .nodes.no1.publickey }}
+            - _hint: node-v0.0.1
+              address: {{ .nodes.no2.address }}
+              publickey: {{ .nodes.no2.publickey }}
+     
+        - _hint: genesis-network-policy-fact-v0.0.1
+          policy:
+            _hint: network-policy-v0.0.1
+            max_operations_in_proposal: 99
+            suffrage_candidate_lifespan: 33
+            suffrage_candidate_limiter:
+              _hint: fixed-suffrage-candidate-limiter-rule-v0.0.1
+              limit: 1 
+            max_suffrage_size: 99
+            suffrage_expel_lifespan: 99
+            empty_proposal_no_block: true
+
+  number_nodes: 3
+  nodes:
+    no1: |
+      sync_sources:
+        - type: sync-source-node
+          address: {{ .nodes.no0.address }}
+          publickey: {{ .nodes.no0.publickey }}
+          publish: "{{ .nodes.no0.network.publish }}"
+          tls_insecure: true
+
+    no2: |
+      sync_sources:
+        - type: sync-source-node
+          address: {{ .nodes.no0.address }}
+          publickey: {{ .nodes.no0.publickey }}
+          publish: "{{ .nodes.no0.network.publish }}"
+          tls_insecure: true
+
+expects:
+  - condition: |
+      {"msg": "contest ready"}
+    actions:
+      - type: "init-nodes"
+        args:
+          - /cmd
+          - init
+          - --design=config.yml
+          - genesis.yml
+        range:
+          - node: [no0]
+
+  - condition: |
+      {
+        "x.message": "genesis block generated",
+        "x.blockmap.manifest.height": 0,
+        "x.blockmap.node": "{{ .nodes.no0.address }}",
+        "x.blockmap.signer": "{{ .nodes.no0.publickey }}"
+      }
+    registers:
+      - assign: .matched.no0.genesis
+
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.no0.genesis._id }}" }, "node": "no0", "x.exit_code": 0, "stderr": true}
+    actions:
+      - type: "run-nodes"
+        args:
+          - /cmd
+          - run
+          - --design=config.yml
+          - --dev.allow-consensus
+        range:
+          - node: [no0]
+
+      - type: "run-nodes"
+        args:
+          - /cmd
+          - run
+          - --design=config.yml
+          - --discovery
+          - "{{ .nodes.no0.network.publish }}#tls_insecure"
+          - --dev.allow-consensus
+        range:
+          - node: [no1, no2]
+
+  - condition: |
+      {"x.message": "state switched", "x.next_state.next": "CONSENSUS"}
+    range:
+      - node: [no0, no1, no2]
+
+  - condition: |
+      $ output="{{ hostBase .self.host }}/no0-nodeinfo.json"; \
+        {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" > $output && \
+        cat $output > /dev/stderr && \
+        cat $output | jq -e -c '.consensus.last_vote | select(.point.height == 1 and .point.round >= 2 and .result == "DRAW")'
+    interval: 2s
+    range:
+      - node: [no0]
+
+  - condition: |
+      $ output="{{ hostBase .self.host }}/no1-nodeinfo.json"; \
+        {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" > $output && \
+        cat $output > /dev/stderr && \
+        cat $output | jq -e -c '.consensus.last_vote | select(.point.height == 1 and .point.round >= 2 and .result == "DRAW")'
+    interval: 2s
+    range:
+      - node: [no1]
+
+  - condition: |
+      $ output="{{ hostBase .self.host }}/no2-nodeinfo.json"; \
+        {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" > $output && \
+        cat $output > /dev/stderr && \
+        cat $output | jq -e -c '.consensus.last_vote | select(.point.height == 1 and .point.round >= 2 and .result == "DRAW")'
+    interval: 2s
+    range:
+      - node: [no2]
+
+    actions: # send network policy operation
+    - type: "host-command"
+      args:
+        - |
+          $ op="{{ hostBase .self.host }}/op.json"; \
+            echo '{ "fact": { "policy": { "suffrage_candidate_limiter": { "_hint": "fixed-suffrage-candidate-limiter-rule-v0.0.1", "limit": 1 }, "_hint": "network-policy-v0.0.1", "max_operations_in_proposal": 333, "suffrage_candidate_lifespan": 262144, "max_suffrage_size": 33, "suffrage_expel_lifespan": 333, "empty_proposal_no_block": false }, "_hint": "network-policy-fact-v0.0.1" }, "_hint": "network-policy-operation-v0.0.1" }' | \
+              {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no0.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no0.address }}" --token findme | \
+              {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no1.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no1.address }}" --token findme | \
+              {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no2.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no2.address }}" > $op && \
+              cat $op > /dev/stderr && \
+              {{ hostFile .self.host "cmd" }} network client send-operation --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" $op
+      range:
+        - node: [no0]
+
+  - condition: |
+      $ state="{{ hostBase .self.host }}/state-no0.json"; \
+        {{ hostFile .self.host "cmd" }} network client state --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" 'network_policy' > $state && \
+          cat $state > /dev/stderr && \
+          cat $state | jq -e -c '. as $root | select( .height == 1 ) | $root'
+    range:
+      - node: [no0]
+    interval: 2s
+
+  - condition: |
+      $ state="{{ hostBase .self.host }}/state-no0.json"; cat $state | jq -e -c \
+        '. as $root | select( .value.policy.empty_proposal_no_block == false )'
+    range:
+      - node: [no0]
+    if_condition_failed: "stop-contest"
+
+  - condition: |
+      {"x.message": "new block saved", "x.height": {"$gt": 3 }}
+    range:
+      - node: [no0, no1, no2]

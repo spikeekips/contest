@@ -4,7 +4,6 @@
 # - no3 enters syncing state
 
 ---
-ignore_abnormal_container_exit: true
 vars:
   .network_id: mitum contest; Sat 26 Dec 2020 05:29:13 AM KST
 
@@ -142,6 +141,7 @@ expects:
           - run
           - --design=config.yml
           - --dev.allow-consensus
+          - --dev.exit-broken
         range:
           - node: [no0]
 
@@ -153,6 +153,7 @@ expects:
           - --discovery
           - "{{ .nodes.no0.network.publish }}#tls_insecure"
           - --dev.allow-consensus
+          - --dev.exit-broken
         range:
           - node: [no1, no2, no3]
 
