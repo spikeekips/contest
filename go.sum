@@ -411,8 +411,8 @@ github.com/sirupsen/logrus v1.4.2/go.mod h1:tLMulIdttU9McNUspp0xgXVQah82FyeX6Mwd
 github.com/spf13/pflag v1.0.3/go.mod h1:DYY7MBk1bdzusC3SYhjObp+wFpr4gzcvqqNjLnInEg4=
 github.com/spikeekips/FerretDB v0.0.0-20231010042047-217939f77234 h1:FzeokgUmsaxcfoNMxX7DtTIp4x5VuYhPJBPDuPS4TzU=
 github.com/spikeekips/FerretDB v0.0.0-20231010042047-217939f77234/go.mod h1:ZUuA5xJk9IOYMy7UXtxo4QcUavtUQOFxrgJmV6lzmDs=
-github.com/spikeekips/mitum v0.0.0-20230920182026-23d566332287 h1:81iIkcinjsn9AIOq+Rzi94F+FscHv5fl+YEzQbyD5jg=
-github.com/spikeekips/mitum v0.0.0-20230920182026-23d566332287/go.mod h1:w+HjWyf+Svb5lUIGK0xs6QUT0Juw//NfFj0++WijSFo=
+github.com/spikeekips/mitum v0.0.0-20231019134549-0673323ecbe6 h1:vFt0c067UY0Q93mF/dKEFeHRfg1/3MyvJg9LCZFy5Ks=
+github.com/spikeekips/mitum v0.0.0-20231019134549-0673323ecbe6/go.mod h1:senJRdpKG3w7QiJZPxV5agOL7NdRgALnRWT7GGxvOvg=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.4.0/go.mod h1:YvHI0jy2hoMjB+UWwv71VJQ9isScKT/TqJzVSSt89Yw=
