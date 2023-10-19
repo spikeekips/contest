@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 
 	dockerTypes "github.com/docker/docker/api/types"
@@ -108,19 +109,21 @@ type containerLogFile struct {
 }
 
 func (f *containerLogFile) Write(b []byte) (int, error) {
-	if len(b) < 1 {
+	nb := slices.Clone(b)
+
+	if len(nb) < 1 {
 		return 0, nil
 	}
 
 	f.Lock()
 	defer f.Unlock()
 
-	n, err := f.f.Write(b)
+	n, err := f.f.Write(nb)
 	if err != nil {
 		return n, errors.WithStack(err)
 	}
 
-	left, _ := contest.BytesLines(b, func(l []byte) error {
+	left, _ := contest.BytesLines(nb, func(l []byte) error {
 		if len(f.rem) > 0 {
 			l = util.ConcatBytesSlice(f.rem, l)
 
