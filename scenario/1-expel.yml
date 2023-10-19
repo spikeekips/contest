@@ -143,7 +143,12 @@ expects:
   - condition: |
       {"x.height": {"$gt": {{ .matched.no2.new_block_saved.x.height }} }, "x.message": "new block saved"}
     range:
-      - node: [no0, no1, no2]
+      - node: [no0, no1]
+
+  - condition: |
+      {"x.height": {"$gt": {{ .matched.no2.new_block_saved.x.height }} }, "x.message": "new block saved"}
+    range:
+      - node: [no2]
     actions: # send suffrage-expel operation
       - type: "host-command"
         args:
