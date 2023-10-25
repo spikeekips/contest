@@ -101,13 +101,15 @@ func (h *baseHost) cleanContainers(remove bool) error { //revive:disable-line:fl
 		}
 	}
 
-	if len(cids) < 1 {
+	n := int64(len(cids))
+
+	if n < 1 {
 		return nil
 	}
 
 	if err := util.RunErrgroupWorker(
 		context.Background(),
-		int64(len(cids)),
+		n, n,
 		func(ctx context.Context, i, _ uint64) error {
 			cid := cids[i]
 

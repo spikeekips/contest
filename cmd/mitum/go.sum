@@ -438,8 +438,8 @@ github.com/sirupsen/logrus v1.2.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPx
 github.com/sirupsen/logrus v1.4.2/go.mod h1:tLMulIdttU9McNUspp0xgXVQah82FyeX6MwdIuYE2rE=
 github.com/spikeekips/contest v0.0.0-20230921142613-a945b0f14d29 h1:2tK0FI4ocEsA7AWw513MAmwgbXdI32vS6l3jZ2476z0=
 github.com/spikeekips/contest v0.0.0-20230921142613-a945b0f14d29/go.mod h1:E9veDBoBVxJHpXezH1eZH/BvuuLpqKL85DuKcUvrrgU=
-github.com/spikeekips/mitum v0.0.0-20231019134549-0673323ecbe6 h1:vFt0c067UY0Q93mF/dKEFeHRfg1/3MyvJg9LCZFy5Ks=
-github.com/spikeekips/mitum v0.0.0-20231019134549-0673323ecbe6/go.mod h1:senJRdpKG3w7QiJZPxV5agOL7NdRgALnRWT7GGxvOvg=
+github.com/spikeekips/mitum v0.0.0-20231024050147-5c7eb9d484e8 h1:CIVztMsvzeOepyIYGNfAN/wUMWa22TGKEOtXss2775Y=
+github.com/spikeekips/mitum v0.0.0-20231024050147-5c7eb9d484e8/go.mod h1:senJRdpKG3w7QiJZPxV5agOL7NdRgALnRWT7GGxvOvg=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.4.0/go.mod h1:YvHI0jy2hoMjB+UWwv71VJQ9isScKT/TqJzVSSt89Yw=
