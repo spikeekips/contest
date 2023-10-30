@@ -7,7 +7,7 @@ toolchain go1.21.3
 require (
 	github.com/FerretDB/FerretDB v1.12.1
 	github.com/alecthomas/kong v0.8.1
-	github.com/docker/docker v24.0.6+incompatible
+	github.com/docker/docker v24.0.7+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/oleksandr/conditions v0.0.0-20170913191404-8ed8af13bdec
 	github.com/pkg/errors v0.9.1
