@@ -154,11 +154,9 @@ expects:
         args:
           - |
             $ echo '{
-              "hash": "J7n5eeGEM2MjpRSL5TDnVhbPEo84QCDSG71qdKxXAv1K",
               "fact": {
                 "node": "{{ .nodes.no2.address }}",
                 "reason": "disconnected",
-                "hash": "BDxCNP32V9qsSSCC2pFiwd4rHKhYki6EQYpD6f5LnKY4",
                 "token": "NzM4ZmFhYjgtMWM0Zi00NmE3LWJhYzctNjg2Mjc0MzlhMjA4c2FzAAAAAAAAACEAAAAAAAAALA==",
                 "_hint": "suffrage-expel-fact-v0.0.1",
                 "start": {{ .matched.no2.new_block_saved.x.height }},
