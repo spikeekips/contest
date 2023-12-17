@@ -139,20 +139,23 @@ expects:
     - type: "host-command"
       args:
         - |
-          $ op="{{ hostBase .self.host }}/op.json"; \
+          $ op="{{ hostBase .self.host }}/op.json"
+
             echo '{ "fact": { "policy": { "suffrage_candidate_limiter": { "_hint": "fixed-suffrage-candidate-limiter-rule-v0.0.1", "limit": 1 }, "_hint": "network-policy-v0.0.1", "max_operations_in_proposal": 333, "suffrage_candidate_lifespan": 262144, "max_suffrage_size": 33, "suffrage_expel_lifespan": 333, "empty_proposal_no_block": true }, "_hint": "network-policy-fact-v0.0.1" }, "_hint": "network-policy-operation-v0.0.1" }' | \
               {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no0.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no0.address }}" --token findme | \
               {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no1.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no1.address }}" --token findme | \
-              {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no2.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no2.address }}" > $op && \
-              cat $op > /dev/stderr && \
+              {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no2.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no2.address }}" > $op || exit 1
+
+              cat $o
               {{ hostFile .self.host "cmd" }} network client send-operation --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" $op
       range:
         - node: [no0]
 
   - condition: |
-      $ state="{{ hostBase .self.host }}/state-no0.json"; \
-        {{ hostFile .self.host "cmd" }} network client state --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" 'network_policy' > $state && \
-          cat $state > /dev/stderr && \
+      $ state="{{ hostBase .self.host }}/state-no0.json"
+
+        {{ hostFile .self.host "cmd" }} network client state --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" 'network_policy' > $state || exit 1
+
           cat $state | jq -e -c '. as $root | select( .height > 2 ) | $root'
     range:
       - node: [no0]
@@ -162,16 +165,18 @@ expects:
         format: json
 
   - condition: |
-      $ state="{{ hostBase .self.host }}/state-no0.json"; cat $state | jq -e -c \
-        '. as $root | select( .value.policy.empty_proposal_no_block == true )'
+      $ state="{{ hostBase .self.host }}/state-no0.json"
+
+        cat $state | jq -e -c '. as $root | select( .value.policy.empty_proposal_no_block == true )'
     range:
       - node: [no0]
     if_condition_failed: "stop-contest"
 
   - condition: |
-      $ output="{{ hostBase .self.host }}/no0-nodeinfo.json"; \
-        {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" > $output && \
-        cat $output > /dev/stderr && \
+      $ output="{{ hostBase .self.host }}/no0-nodeinfo.json"
+
+        {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" > $output || exit 1
+
         cat $output | jq -e -c '.consensus.last_vote | select(.point.height == {{ addInt .matched.new_network_policy_state.height 1}} and .point.round >= 2 and .result == "DRAW")'
     interval: 2s
     range:

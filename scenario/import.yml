@@ -99,21 +99,28 @@ expects:
       {"node": "no1", "x.exit_code": 0, "stderr": true}
 
   - condition: |
-      $ zcat {{ .self.host.Base }}/{{ .self.range.node }}/data/000/000/000/000/000/000/000/states.ndjson.gz | grep '^{' | jq -e -c '. | select( .height == 0 )'
+      $ zcat {{ .self.host.Base }}/{{ .self.range.node }}/data/000/000/000/000/000/000/000/states.ndjson.gz | grep '^{' | \
+          jq -e -c '. | select( .height == 0 )'
     range:
       - node: [no0, no1]
 
   - condition: |
-      $ zcat {{ .self.host.Base }}/{{ .self.range.node }}/data/000/000/000/000/000/000/000/states.ndjson.gz | grep '^{' | jq -e -c '. | select( .key == "suffrage" )' | jq -e -c 'select( (.value.nodes[0].address == "{{ .nodes.no0.address}}") and (.value.nodes[1].address == "{{ .nodes.no1.address}}") )'
+      $ zcat {{ .self.host.Base }}/{{ .self.range.node }}/data/000/000/000/000/000/000/000/states.ndjson.gz | grep '^{' | \
+          jq -e -c '. | select( .key == "suffrage" )' | \
+          jq -e -c 'select( (.value.nodes[0].address == "{{ .nodes.no0.address}}") and (.value.nodes[1].address == "{{ .nodes.no1.address}}") )'
     range:
       - node: [no0, no1]
 
   - condition: |
-      $ zcat {{ .self.host.Base }}/{{ .self.range.node }}/data/000/000/000/000/000/000/000/states.ndjson.gz | grep '^{' | jq -e -c '. | select( .key == "suffrage" )' | jq -e -c 'select( (.value.nodes[0].publickey == "{{ .nodes.no0.publickey}}") and (.value.nodes[1].publickey == "{{ .nodes.no1.publickey}}") )'
+      $ zcat {{ .self.host.Base }}/{{ .self.range.node }}/data/000/000/000/000/000/000/000/states.ndjson.gz | grep '^{' | \
+          jq -e -c '. | select( .key == "suffrage" )' | \
+          jq -e -c 'select( (.value.nodes[0].publickey == "{{ .nodes.no0.publickey}}") and (.value.nodes[1].publickey == "{{ .nodes.no1.publickey}}") )'
     range:
       - node: [no0, no1]
 
   - condition: |
-      $ zcat {{ .self.host.Base }}/{{ .self.range.node }}/data/000/000/000/000/000/000/000/states.ndjson.gz | grep '^{' | jq -e -c '. | select( .key == "network_policy" )' | jq -e -c ' .value.policy | select( ( .suffrage_candidate_limiter.limit == 1 ) and (.max_operations_in_proposal == 99) and ( .suffrage_candidate_lifespan == 33) )'
+      $ zcat {{ .self.host.Base }}/{{ .self.range.node }}/data/000/000/000/000/000/000/000/states.ndjson.gz | grep '^{' | \
+          jq -e -c '. | select( .key == "network_policy" )' | \
+          jq -e -c ' .value.policy | select( ( .suffrage_candidate_limiter.limit == 1 ) and (.max_operations_in_proposal == 99) and ( .suffrage_candidate_lifespan == 33) )'
     range:
       - node: [no0, no1]

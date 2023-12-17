@@ -115,9 +115,12 @@ expects:
       - type: "host-command"
         args:
           - |
-            $ op="{{ hostBase .self.host }}/{{ uuid }}.json"; echo '{ "fact": { "node": "{{ .nodes.no1.address }}", "_hint": "suffrage-disjoin-fact-v0.0.1", "start": 1 }, "_hint": "suffrage-disjoin-operation-v0.0.1" }' | \
-                {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no1.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no1.address }}" --token findme > $op; \
-                {{ hostFile .self.host "cmd" }} network client send-operation --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" "$op"; \
+            $ op="{{ hostBase .self.host }}/{{ uuid }}.json"
+
+              echo '{ "fact": { "node": "{{ .nodes.no1.address }}", "_hint": "suffrage-disjoin-fact-v0.0.1", "start": 1 }, "_hint": "suffrage-disjoin-operation-v0.0.1" }' | \
+                {{ hostFile .self.host "cmd" }} key sign "{{ .nodes.no1.privatekey }}" "{{ .network_id }}" - --node "{{ .nodes.no1.address }}" --token findme > $op || exit 1
+
+                {{ hostFile .self.host "cmd" }} network client send-operation --log.level=trace "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" "$op" || exit 1
                 {{ hostFile .self.host "cmd" }} network client send-operation --log.level=trace "{{ .network_id }}" "{{ .nodes.no1.network.publish}}#tls_insecure" "$op"
         range:
           - node: [no0]

@@ -97,7 +97,8 @@ expects:
       {"node": "no0", "x.exit_code": 0, "stderr": true}
 
   - condition: |
-      $ find {{ .self.host.Base }}/{{ .self.range.node }}/data | grep map.json | sort | tail -n 1 | awk -F'000/' '{print $NF}' | cut -d '/' -f 1 | sed -e 's/^0*//g'
+      $ find {{ .self.host.Base }}/{{ .self.range.node }}/data | \
+          grep map.json | sort | tail -n 1 | awk -F'000/' '{print $NF}' | cut -d '/' -f 1 | sed -e 's/^0*//g'
     range:
       - node: [no0]
     registers:

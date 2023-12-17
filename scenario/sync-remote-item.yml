@@ -98,9 +98,10 @@ expects:
       {"msg": "contest ready"}
 
   - condition: |
-      $ remote="{{ .self.host.Base }}/remote/{{ .self.range.node }}"; mkdir -p "$remote" && \
-          touch $remote/.0 && \
-          echo {{ .self.fileserver.publish }}
+      $ remote="{{ .self.host.Base }}/remote/{{ .self.range.node }}"
+
+      mkdir -p "$remote" && touch $remote/.0 || exit 1
+      echo {{ .self.fileserver.publish }}
     if_condition_failed: "stop-contest"
     range:
       - node: [no0, no1, no2]

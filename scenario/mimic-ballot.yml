@@ -165,9 +165,11 @@ expects:
 
   # check no2 is still in syncing state
   - condition: |
-      $ output="{{ hostBase .self.host }}/no2-nodeinfo.json"; \
-        {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" > $output && \
-        cat $output > /dev/stderr && \
+      $ output="{{ hostBase .self.host }}/no2-nodeinfo.json"
+
+        {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" > $output || exit 1
+
+        cat $output
         cat $output | jq -e -c 'select(.consensus.state == "SYNCING")'
     range:
       - node: [no2]
@@ -183,9 +185,11 @@ expects:
       - node: [no0, no1]
 
   - condition: |
-      $ output="{{ hostBase .self.host }}/no2-nodeinfo.json"; \
-        {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" > $output && \
-        cat $output > /dev/stderr && \
+      $ output="{{ hostBase .self.host }}/no2-nodeinfo.json"
+
+        {{ hostFile .self.host "cmd" }} network client node-info --log.level=trace "{{ .network_id }}" "{{ .nodes.no2.network.publish}}#tls_insecure" > $output || exit 1
+
+        cat $output
         cat $output | jq -e -c 'select(.consensus.state == "SYNCING")'
     range:
       - node: [no2]

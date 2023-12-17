@@ -90,8 +90,8 @@ expects:
       - node: [no0]
 
   - condition: |
-      $ remote="{{ .self.host.Base }}/remote"; mkdir -p "$remote" && \
-          echo {{ .nodes.no0.fileserver.publish }}
+      $ mkdir -p "{{ .self.host.Base }}/remote" || exit 1
+        echo {{ .nodes.no0.fileserver.publish }}
     if_condition_failed: "stop-contest"
     actions:
       - type: "run-nginx"
@@ -107,10 +107,11 @@ expects:
 
   - log: move genesis block item files
   - condition: |
-      $ remote="{{ .self.host.Base }}/remote/{{ .self.range.node }}"; \
-          local="{{ .self.host.Base }}/{{ .self.range.node }}/data/000/000/000/000/000/000/000"; \
-          mkdir -p "$remote" && \
-          mv "$local" "$remote"/0 && chmod -R 777 "$remote"/
+      $ remote="{{ .self.host.Base }}/remote/{{ .self.range.node }}"
+        local="{{ .self.host.Base }}/{{ .self.range.node }}/data/000/000/000/000/000/000/000"
+
+        mkdir -p "$remote" || exit 1
+        mv "$local" "$remote"/0 && chmod -R 777 "$remote"/
     if_condition_failed: "stop-contest"
     range:
       - node: [no0]
@@ -141,7 +142,8 @@ expects:
 
   - log: check file server
   - condition: |
-      $ curl -s {{ .nodes.no0.fileserver.publish }}/{{ .self.alias }}/0/map.json | grep '^{' | jq -e -c 'select(.manifest.height == 0)'
+      $ curl -s {{ .nodes.no0.fileserver.publish }}/{{ .self.alias }}/0/map.json | grep '^{' | \
+          jq -e -c 'select(.manifest.height == 0)'
     if_condition_failed: "stop-contest"
     actions:
       - type: "run-nodes"
@@ -169,6 +171,7 @@ expects:
   - condition: |
       $ remote="{{ .self.host.Base }}/remote/{{ .self.range.node }}"
         local="{{ .self.host.Base }}/{{ .self.range.node }}/data/000/000/000/000/000/000/001"
+
         cp -r "$local" "$remote"/1 && chmod -R 777 "$remote"/
     if_condition_failed: "stop-contest"
     range:

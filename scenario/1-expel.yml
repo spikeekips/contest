@@ -171,12 +171,14 @@ expects:
           - node: [no1]
 
   - condition: |
-      $ state="{{ hostBase .self.host }}/expel-state.json"; \
+      $ state="{{ hostBase .self.host }}/expel-state.json"
+
         {{ hostFile .self.host "cmd" }} network client state --log.level=trace \
-             "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" 'suffrage' > $state && \
-        cat $state && \
-        cat $state | jq -e -c '(.value.nodes | length) == 2' && \
-        cat $state | jq -e -c '.value.nodes[] | select( (.address == "{{ .nodes.no0.address }}") and (.publickey == "{{ .nodes.no0.publickey }}"))' && \
+             "{{ .network_id }}" "{{ .nodes.no0.network.publish}}#tls_insecure" 'suffrage' > $state || exit 1
+
+        cat $state
+        cat $state | jq -e -c '(.value.nodes | length) == 2' || exit 1
+        cat $state | jq -e -c '.value.nodes[] | select( (.address == "{{ .nodes.no0.address }}") and (.publickey == "{{ .nodes.no0.publickey }}"))' || exit 1
         cat $state | jq -e -c '.value.nodes[] | select( (.address == "{{ .nodes.no1.address }}") and (.publickey == "{{ .nodes.no1.publickey }}"))'
     range:
       - node: [no1]
