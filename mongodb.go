@@ -119,15 +119,18 @@ func (db *Mongodb) Find(ctx context.Context, query bson.M) (record map[string]in
 	option := options.FindOne()
 	option = option.SetSort(bson.D{{Key: "_id", Value: -1}})
 
-	if r := db.db.Collection(mongodbColLogEntry).FindOne(ctx, query, option); r.Err() != nil {
+	switch r := db.db.Collection(mongodbColLogEntry).FindOne(ctx, query, option); {
+	case r.Err() != nil:
 		if errors.Is(r.Err(), mongo.ErrNoDocuments) {
 			return nil, false, nil
 		}
 
 		return nil, false, r.Err()
-	} else if err := r.Decode(&record); err != nil {
-		return nil, true, errors.WithStack(err)
-	} else {
+	default:
+		if err := r.Decode(&record); err != nil {
+			return nil, true, errors.WithStack(err)
+		}
+
 		return record, true, nil
 	}
 }

@@ -31,7 +31,7 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 		var err error
 
 		if len(action.Args) > 0 {
-			err = errors.Errorf(action.Args[0])
+			err = errors.New(action.Args[0])
 		}
 
 		cmd.exitch <- err
@@ -39,7 +39,7 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 		return nil
 	case "init-nodes":
 		if err := cmd.rangeNodes(ctx, action,
-			func(ctx context.Context, host contest.Host, alias string, args []string) error {
+			func(ctx context.Context, host contest.Host, alias string, args []string, _ map[string]interface{}) error {
 				nodeArgs, args := mergeNodeArgs(args)
 
 				log.Debug().
@@ -55,7 +55,7 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 		}
 	case "run-nodes":
 		if err := cmd.rangeNodes(ctx, action,
-			func(ctx context.Context, host contest.Host, alias string, args []string) error {
+			func(ctx context.Context, host contest.Host, alias string, args []string, _ map[string]interface{}) error {
 				nodeArgs, args := mergeNodeArgs(args)
 
 				log.Debug().
@@ -71,7 +71,7 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 		}
 	case "stop-nodes":
 		if err := cmd.rangeNodes(ctx, action,
-			func(ctx context.Context, host contest.Host, alias string, args []string) error {
+			func(ctx context.Context, host contest.Host, alias string, args []string, _ map[string]interface{}) error {
 				log.Debug().
 					Str("host", host.Address()).
 					Str("alias", alias).
@@ -88,7 +88,7 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 		}
 	case "host-command":
 		if err := cmd.rangeNodes(ctx, action,
-			func(ctx context.Context, host contest.Host, alias string, args []string) error {
+			func(ctx context.Context, host contest.Host, alias string, args []string, _ map[string]interface{}) error {
 				cmd, err := contest.LoadHostCommandArgs(args)
 				if err != nil {
 					return errors.WithStack(err)
@@ -133,6 +133,38 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 		})
 		if err != nil {
 			return errors.WithMessage(err, "run redis")
+		}
+	case "run-nginx":
+		hosts := map[string]contest.Host{}
+
+		if err := cmd.rangeNodes(ctx, action,
+			func(
+				ctx context.Context,
+				host contest.Host,
+				alias string,
+				args []string,
+				properties map[string]interface{},
+			) error {
+				if _, found := hosts[host.HostID()]; found {
+					return nil
+				}
+
+				hosts[host.HostID()] = host
+
+				return cmd.startNginxContainer(ctx, host, properties, func(body container.WaitResponse, err error) {
+					if err != nil {
+						cmd.exitch <- err
+
+						return
+					}
+
+					if body.Error != nil {
+						cmd.exitch <- errors.Errorf(body.Error.Message)
+					}
+				})
+			},
+		); err != nil {
+			return errors.WithMessage(err, "run host command")
 		}
 	}
 

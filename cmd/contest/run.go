@@ -16,6 +16,7 @@ var (
 	contestID         = util.ULID().String()
 	DefaultNodeImage  = "debian:testing-slim"
 	DefaultRedisImage = "redis:latest"
+	DefaultNginxImage = "nginx:stable-alpine-slim"
 )
 
 type runCommand struct { //nolint:govet //...

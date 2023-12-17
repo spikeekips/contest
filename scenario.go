@@ -281,9 +281,10 @@ func (s ExpectScenario) isValidCondition() error {
 }
 
 type ScenarioAction struct {
-	Type  string                `yaml:"type"`
-	Args  []string              `yaml:"args"`
-	Range []map[string][]string `yaml:"range"`
+	Type       string                 `yaml:"type"`
+	Properties map[string]interface{} `yaml:"properties"`
+	Args       []string               `yaml:"args"`
+	Range      []map[string][]string  `yaml:"range"`
 }
 
 func (s ScenarioAction) IsValid([]byte) error {
@@ -339,6 +340,35 @@ func (s ScenarioAction) CompileArgs(vars *Vars) (args []string, err error) {
 	}
 
 	return args, nil
+}
+
+func (s ScenarioAction) CompileProperties(vars *Vars) (_ map[string]interface{}, err error) {
+	m := map[string]interface{}{}
+
+	for i := range s.Properties {
+		p := s.Properties[i]
+
+		switch t := p.(type) {
+		case string:
+			m[i], err = CompileTemplate(t, vars, nil)
+			if err != nil {
+				return nil, err
+			}
+		default:
+			m[i] = p
+		}
+	}
+
+	return m, nil
+}
+
+func ScenarioActionProperty[T any](properties map[string]interface{}, k string, v *T) (bool, error) {
+	i, found := properties[k]
+	if !found {
+		return false, nil
+	}
+
+	return true, util.SetInterfaceValue(i, v)
 }
 
 type ScenarioRegister struct {

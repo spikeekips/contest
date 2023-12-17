@@ -80,8 +80,8 @@ func loadConfigFromDesign[T any](s string, name string, v *T) error {
 		return util.ErrNotFound.Errorf("%q not found in design", name)
 	}
 
-	if err := util.InterfaceSetValue(i, v); err != nil {
-		return util.ErrInvalid.Errorf("invalid %q design, expected %T, but %T", name, v, i)
+	if err := util.SetInterfaceValue(i, v); err != nil {
+		return util.ErrInvalid.WithMessage(err, "invalid %q design", name)
 	}
 
 	return nil

@@ -34,11 +34,15 @@ func availablePort(network string) (string, error) {
 }
 
 func availableTCPPort() (string, error) {
-	if addr, err := net.ResolveTCPAddr("tcp", "localhost:0"); err != nil {
+	switch addr, err := net.ResolveTCPAddr("tcp", "localhost:0"); {
+	case err != nil:
 		return "", errors.WithStack(err)
-	} else if l, err := net.ListenTCP("tcp", addr); err != nil {
-		return "", errors.WithStack(err)
-	} else {
+	default:
+		l, err := net.ListenTCP("tcp", addr)
+		if err != nil {
+			return "", errors.WithStack(err)
+		}
+
 		defer func() {
 			_ = l.Close()
 		}()
@@ -48,11 +52,15 @@ func availableTCPPort() (string, error) {
 }
 
 func checkAvailableUDPPort(port string) error {
-	if addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("localhost:%s", port)); err != nil {
+	switch addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("localhost:%s", port)); {
+	case err != nil:
 		return errors.WithStack(err)
-	} else if l, err := net.ListenUDP("udp", addr); err != nil {
-		return errors.WithStack(err)
-	} else {
+	default:
+		l, err := net.ListenUDP("udp", addr)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
 		defer func() {
 			_ = l.Close()
 		}()

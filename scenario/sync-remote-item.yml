@@ -1,0 +1,280 @@
+# 4 consensus node, no0, no1, no2, no3
+# 1. start nodes, no0, no1, no2
+# 1. build new blocks
+# 1. move block items of running nodes to fileserver
+# 1. run remaining node, no3
+# 1. no3 can sync of remote items
+
+---
+vars:
+  .network_id: mitum contest; Sat 26 Dec 2020 05:29:13 AM KST
+
+designs:
+  common: |
+    {{ setVar ".self.privatekey" newKey }}
+    {{ setVar ".self.publickey" .self.privatekey.Publickey }}
+    {{ setVar ".self.fileserver.port"  (freePort .self.host "nginx-fileserver" "tcp") }}
+    {{ setVar ".self.fileserver.publish" (print "http://" .self.host.PublishHost ":" .self.fileserver.port) }}
+
+    address: {{ setgetVar ".self.address" ( printf "%ssas" .self.alias ) }}
+    privatekey: {{ .self.privatekey }}
+    #publickey: {{ .self.privatekey.Publickey }}
+    network_id: {{ .network_id }}
+    network:
+      bind: 0.0.0.0:{{ freePort .self.host (print "node-" .self.alias) "udp" }}
+      publish: {{ setgetVar ".self.network.publish" ( print .self.host.PublishHost ":" ( freePort .self.host (print "node-" .self.alias) "udp" ) ) }}
+      tls_insecure: true
+    storage:
+      base: /data
+    ballot-stuck-resolver: dummy
+    parameters:
+      misc:
+        block_item_readers_remove_empty_after: 1s
+
+  genesis: |
+      facts:
+        - _hint: suffrage-genesis-join-fact-v0.0.1
+          nodes:
+            - _hint: node-v0.0.1
+              address: {{ .nodes.no0.address }}
+              publickey: {{ .nodes.no0.publickey }}
+            - _hint: node-v0.0.1
+              address: {{ .nodes.no1.address }}
+              publickey: {{ .nodes.no1.publickey }}
+            - _hint: node-v0.0.1
+              address: {{ .nodes.no2.address }}
+              publickey: {{ .nodes.no2.publickey }}
+            - _hint: node-v0.0.1
+              address: {{ .nodes.no3.address }}
+              publickey: {{ .nodes.no3.publickey }}
+        - _hint: genesis-network-policy-fact-v0.0.1
+          policy:
+            _hint: network-policy-v0.0.1
+            max_operations_in_proposal: 99
+            suffrage_candidate_lifespan: 33
+            suffrage_candidate_limiter:
+              _hint: fixed-suffrage-candidate-limiter-rule-v0.0.1
+              limit: 1 
+            max_suffrage_size: 99
+            suffrage_expel_lifespan: 99
+  
+  number_nodes: 4
+  nodes:
+    no1: |
+      sync_sources:
+        - type: sync-source-node
+          address: {{ .nodes.no0.address }}
+          publickey: {{ .nodes.no0.publickey }}
+          publish: "{{ .nodes.no0.network.publish }}"
+          tls_insecure: true
+    no2: |
+      sync_sources:
+        - type: sync-source-node
+          address: {{ .nodes.no0.address }}
+          publickey: {{ .nodes.no0.publickey }}
+          publish: "{{ .nodes.no0.network.publish }}"
+          tls_insecure: true
+    # no3 sync from all the others
+    no3: |
+      sync_sources:
+        - type: sync-source-node
+          address: {{ .nodes.no0.address }}
+          publickey: {{ .nodes.no0.publickey }}
+          publish: "{{ .nodes.no0.network.publish }}"
+          tls_insecure: true
+        - type: sync-source-node
+          address: {{ .nodes.no1.address }}
+          publickey: {{ .nodes.no1.publickey }}
+          publish: "{{ .nodes.no1.network.publish }}"
+          tls_insecure: true
+        - type: sync-source-node
+          address: {{ .nodes.no2.address }}
+          publickey: {{ .nodes.no2.publickey }}
+          publish: "{{ .nodes.no2.network.publish }}"
+          tls_insecure: true
+
+expects:
+  - condition: |
+      {"msg": "contest ready"}
+
+  - condition: |
+      $ remote="{{ .self.host.Base }}/remote/{{ .self.range.node }}"; mkdir -p "$remote" && \
+          touch $remote/.0 && \
+          echo {{ .self.fileserver.publish }}
+    if_condition_failed: "stop-contest"
+    range:
+      - node: [no0, no1, no2]
+    actions:
+      - type: "run-nginx"
+        properties:
+          name: "fileserver"
+          root: "{{ .self.host.Base }}/remote"
+          port: |
+            {{ .self.fileserver.port }}
+        range:
+          - node: [no0]
+
+  - log: check file server
+  - condition: |
+      $ curl --fail -v {{ .self.fileserver.publish }}/{{ .self.range.node }}/.0
+    if_condition_failed: "stop-contest"
+    range:
+      - node: [no0, no1, no2]
+    actions:
+      - type: "init-nodes"
+        args:
+          - /cmd
+          - init
+          - --design=config.yml
+          - genesis.yml
+        range:
+          - node: [no0]
+
+  - condition: |
+      {
+        "x.message": "genesis block generated",
+        "x.blockmap.manifest.height": 0,
+        "x.blockmap.node": "{{ with ( index .nodes .self.range.node ) }}{{ .address }}{{ end }}",
+        "x.blockmap.signer": "{{ with ( index .nodes .self.range.node ) }}{{ .publickey }}{{ end }}"
+      }
+    range:
+      - node: [no0]
+  
+  - condition: |
+      {"x.exit_code": 0, "stderr": true}
+    range:
+      - node: [no0]
+ 
+  - condition: |
+      {}
+    actions:
+      - type: "run-nodes"
+        args:
+          - /cmd
+          - run
+          - --design=config.yml
+          - --dev.allow-consensus
+        range:
+          - node: [no0]
+
+  - condition: |
+     {}
+    actions:
+      - type: "run-nodes"
+        args:
+          - /cmd
+          - run
+          - --design=config.yml
+          - --dev.allow-consensus
+          - --discovery={{ .nodes.no0.network.publish }}#tls_insecure
+        range:
+          - node: [no1, no2]
+
+  - condition: |
+     {"x.message": "state switched", "x.next_state.next": "CONSENSUS"}
+    range:
+      - node: [no0, no1, no2]
+ 
+  - condition: |
+      {"x.height": {"$gte": 3}, "x.message": "new block saved"}
+    range:
+      - node: [no0, no1, no2]
+ 
+  - log: copy block item files
+  - condition: |
+      $ for i in 0 1 2 3
+        do
+          remote="{{ .self.host.Base }}/remote/{{ .self.range.node }}"
+          local="{{ .self.host.Base }}/{{ .self.range.node }}/data/000/000/000/000/000/000/00$i"
+          cp -r "$local" "$remote"/$i && chmod -R 777 "$remote"/
+        done
+    if_condition_failed: "stop-contest"
+    range:
+      - node: [no0, no1, no2]
+
+  - condition: |
+      $ for i in 0 1 2 3
+        do
+          curl --fail -v {{ .self.fileserver.publish }}/{{ .self.range.node }}/$i/map.json | \
+            grep '^{' | jq -e -c "select(.manifest.height == $i)" || exit 1
+          curl --fail -v {{ .self.fileserver.publish }}/{{ .self.range.node }}/$i/proposal.json.gz >/dev/null
+          curl --fail -v {{ .self.fileserver.publish }}/{{ .self.range.node }}/$i/voteproofs.json >/dev/null
+        done
+    if_condition_failed: "stop-contest"
+    range:
+      - node: [no0, no1, no2]
+
+  - log: update 0, 1, 2, 3 block item files json
+  - condition: |
+      $ for i in 0 1 2 3; do \
+          bfiles="{{ .self.host.Base }}/{{ .self.range.node }}/data/000/000/000/000/000/000/$i.json"
+
+          echo '>' "$bfiles"
+          cat "$bfiles" | jq
+          echo '<' "$bfiles"
+
+          cat "$bfiles" | sed -e "s@local://@{{ .self.fileserver.publish }}/{{ .self.alias }}/$i@g" | \
+              jq '(.items.proposal | select(. != null)).compress_format = "gz"' | \
+              jq '(.items.operations | select(. != null)).compress_format = "gz"' | \
+              jq '(.items.operations_tree | select(. != null)).compress_format = "gz"' | \
+              jq '(.items.states | select(. != null)).compress_format = "gz"' | \
+              jq '(.items.states_tree | select(. != null)).compress_format = "gz"' \
+            > "$bfiles".tmp || exit 1
+          echo '>' "$bfiles".tmp
+          cat "$bfiles".tmp | jq
+          echo '<' "$bfiles".tmp
+
+          {{ hostFile .self.host "cmd" }} network client node write \
+            --log.format=json \
+            --log.level=trace \
+            --format=json \
+            "{{ .network_id }}" "{{ .self.network.publish }}#tls_insecure" "{{ .self.privatekey }}" \
+            block_item_files.$i "$bfiles".tmp --input.is-file
+        done
+    if_condition_failed: "stop-contest"
+    range:
+      - node: [no0, no1, no2]
+
+  - condition: | # copied item files will be removed from local fs
+      $ ls -al "{{ .self.host.Base }}/{{ .self.range.node }}"/data/000/000/000/000/000/000/*
+
+        sleep 6 # block item files in remote will be removed until `block_item_readers_remove_empty_after`(1s)
+
+        for i in 0 1 2 3
+        do
+          echo "{{ .self.host.Base }}/{{ .self.range.node }}"/data/000/000/000/000/000/000/00$i
+          test ! -d "{{ .self.host.Base }}/{{ .self.range.node }}"/data/000/000/000/000/000/000/00$i || exit 1
+        done
+    if_condition_failed: "stop-contest"
+    range:
+      - node: [no0, no1, no2]
+
+  - log: start no3
+  - condition: |
+      {}
+    actions:
+      - type: "run-nodes"
+        args:
+          - /cmd
+          - run
+          - --design=config.yml
+          - --dev.allow-consensus
+          - --discovery={{ .nodes.no0.network.publish }}#tls_insecure
+          - --dev.exit-broken
+        range:
+          - node: [no3]
+
+  - condition: |
+      {"node": "no3", "x.message": "state switched", "x.next_state.next": "CONSENSUS"}
+    registers:
+      - assign: .matched.no3_consensus
+
+  - condition: |
+      {"node": "no3", "_id": {"$gt": "{{ .matched.no3_consensus._id }}" }, "x.message": "new block saved"}
+    registers:
+      - assign: .matched.no3_new_block_after_consensus
+
+  - condition: |
+      {"x.height": {"$gt": {{ .matched.no3_new_block_after_consensus.x.height }} }, "x.message": "new block saved"}
+    range:
+      - node: [no0, no1, no2, no3]

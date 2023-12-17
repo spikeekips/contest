@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -77,6 +78,119 @@ func (*runCommand) startRedisContainer(
 	}
 
 	if err := h.StartContainer(ctx, hostconfig, nil, name, whenExit); err != nil {
+		return e.Wrap(err)
+	}
+
+	return nil
+}
+
+var nginxConf = `
+error_log  /dev/stderr;
+events {}
+
+http {
+  server {
+    access_log /dev/stdout;
+    listen @@port@@;
+    sendfile on;
+    tcp_nodelay on;
+	autoindex on;
+  }
+}
+`
+
+func (*runCommand) startNginxContainer(
+	ctx context.Context,
+	h contest.Host,
+	properties map[string]interface{},
+	whenExit func(container.WaitResponse, error),
+) error {
+	e := util.StringError("start nginx container")
+
+	var id string
+
+	switch found, err := contest.ScenarioActionProperty(properties, "name", &id); {
+	case err != nil:
+		return err
+	case !found:
+		return errors.Errorf("name not found")
+	}
+
+	var root string
+
+	switch found, err := contest.ScenarioActionProperty(properties, "root", &root); {
+	case err != nil:
+		return err
+	case !found:
+		return errors.Errorf("root not found")
+	}
+
+	var port string
+
+	switch found, err := contest.ScenarioActionProperty(properties, "port", &port); {
+	case err != nil:
+		return err
+	case !found:
+		port = strings.TrimSpace(port)
+
+		return errors.Errorf("port not found")
+	}
+
+	cname := containerName(id)
+
+	if err := h.RemoveContainer(ctx, cname, dockerTypes.ContainerRemoveOptions{
+		RemoveVolumes: true,
+		Force:         true,
+	}); err != nil {
+		if !errors.Is(err, util.ErrNotFound) {
+			return e.Wrap(err)
+		}
+	}
+
+	confb := bytes.NewBuffer([]byte(strings.Replace(nginxConf, "@@port@@", port, -1)))
+	confname := id + "-nginx.conf"
+
+	var hostconfname string
+
+	switch err := h.Upload(confb, confname, confname, 0o600); {
+	case err != nil:
+		return err
+	default:
+		i, found := h.File(confname)
+		if !found {
+			return errors.Errorf("nginx conf not found")
+		}
+
+		hostconfname = i
+	}
+
+	config := &container.Config{
+		Hostname: id,
+		Image:    DefaultNginxImage,
+		Labels:   map[string]string{"prog": contest.ContainerLabel},
+	}
+
+	hostconfig := &container.HostConfig{
+		NetworkMode: container.NetworkMode("host"),
+		Mounts: []dockerMount.Mount{
+			{
+				Type:   dockerMount.TypeBind,
+				Source: root,
+				Target: "/etc/nginx/html",
+			},
+			{
+				Type:   dockerMount.TypeBind,
+				Source: hostconfname,
+				Target: "/etc/nginx/nginx.conf",
+			},
+		},
+	}
+
+	if err := h.CreateContainer(ctx, config, hostconfig, nil, cname); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := h.StartContainer(ctx, hostconfig, nil, cname, whenExit); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -318,7 +432,7 @@ func (*runCommand) nodeContainerConfigs(alias string, host contest.Host) (
 func (cmd *runCommand) rangeNodes(
 	ctx context.Context,
 	action contest.ScenarioAction,
-	f func(context.Context, contest.Host, string, []string) error,
+	f func(context.Context, contest.Host, string, []string, map[string]interface{}) error,
 ) error {
 	rv := action.RangeValues()
 	if len(rv) < 1 {
@@ -339,6 +453,14 @@ func (cmd *runCommand) rangeNodes(
 		}
 
 		vars := cmd.vars.Clone(nil)
+
+		switch i, found := vars.Value(".nodes." + alias); {
+		case !found:
+			return errors.Errorf("node vars not found")
+		default:
+			vars.Set(".self", i)
+		}
+
 		vars.Set(".self.host", host)
 		vars.Set(".self.range", rv[i])
 
@@ -347,7 +469,12 @@ func (cmd *runCommand) rangeNodes(
 			return errors.WithMessage(err, alias)
 		}
 
-		if err := f(ctx, host, alias, args); err != nil {
+		properties, err := action.CompileProperties(vars)
+		if err != nil {
+			return errors.WithMessage(err, alias)
+		}
+
+		if err := f(ctx, host, alias, args, properties); err != nil {
 			return errors.WithMessage(err, alias)
 		}
 	}

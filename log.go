@@ -191,7 +191,7 @@ func (w *WatchLogs) newactive() (newactive ExpectScenario, queries []ConditionQu
 
 func (w *WatchLogs) compileConditionQueries(expect ExpectScenario) (queries []ConditionQuery, _ error) {
 	if len(expect.Range) < 1 {
-		query, err := w.compileConditionQuery(expect.Condition, w.vars)
+		query, err := w.compileConditionQuery(expect.Condition, w.vars, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -204,10 +204,7 @@ func (w *WatchLogs) compileConditionQueries(expect ExpectScenario) (queries []Co
 	queries = make([]ConditionQuery, len(rv))
 
 	for i := range rv {
-		vars := w.vars.Clone(nil)
-		vars.Set(".self.range", rv[i])
-
-		query, err := w.compileConditionQuery(expect.Condition, vars)
+		query, err := w.compileConditionQuery(expect.Condition, w.vars.Clone(nil), rv[i])
 		if err != nil {
 			return nil, err
 		}
@@ -218,31 +215,37 @@ func (w *WatchLogs) compileConditionQueries(expect ExpectScenario) (queries []Co
 	return queries, nil
 }
 
-func (w *WatchLogs) compileConditionQuery(s interface{}, vars *Vars) (ConditionQuery, error) {
+func (w *WatchLogs) compileConditionQuery(
+	s interface{}, vars *Vars, rangeValue map[string]interface{},
+) (ConditionQuery, error) {
 	switch t := s.(type) {
 	case string:
-		return w.compileStringConditionQuery(t, vars)
+		return w.compileStringConditionQuery(t, vars, rangeValue)
 	case map[string]interface{}:
-		return w.compileMapConditionQuery(t, vars)
+		return w.compileMapConditionQuery(t, vars, rangeValue)
 	default:
 		return nil, errors.Errorf("unknown condition type, %T", t)
 	}
 }
 
-func (w *WatchLogs) compileStringConditionQuery(s string, vars *Vars) (ConditionQuery, error) {
+func (w *WatchLogs) compileStringConditionQuery(
+	s string, vars *Vars, rangeValue map[string]interface{},
+) (ConditionQuery, error) {
 	e := util.StringError("compile condition string query")
 
 	var alias string
-	var rangevalue map[string]interface{}
 
-	switch i, found := vars.Value(".self.range"); {
-	case !found:
-		rangevalue = map[string]interface{}{}
-	default:
-		rangevalue = i.(map[string]interface{}) //nolint:forcetypeassert //...
-
-		if j, found := rangevalue["node"]; found {
+	if rangeValue != nil {
+		if j, found := rangeValue["node"]; found {
 			alias = j.(string) //nolint:forcetypeassert //...
+		}
+
+		switch i, found := vars.Value(".nodes." + alias); {
+		case !found:
+			return nil, e.Errorf("node vars not found")
+		default:
+			vars.Set(".self", i)
+			vars.Set(".self.range", rangeValue)
 		}
 	}
 
@@ -258,8 +261,8 @@ func (w *WatchLogs) compileStringConditionQuery(s string, vars *Vars) (Condition
 			return nil, errors.WithMessagef(err, "unmarshal query, %q", c)
 		}
 
-		for k := range rangevalue {
-			m[k] = rangevalue[k]
+		for k := range rangeValue {
+			m[k] = rangeValue[k]
 		}
 
 		return MongodbFindConditionQuery{findDBFunc: w.findDBFunc, m: m}, nil
@@ -286,7 +289,9 @@ func (w *WatchLogs) compileStringConditionQuery(s string, vars *Vars) (Condition
 	}
 }
 
-func (w *WatchLogs) compileMapConditionQuery(s map[string]interface{}, vars *Vars) (ConditionQuery, error) {
+func (w *WatchLogs) compileMapConditionQuery(
+	s map[string]interface{}, vars *Vars, rangeValue map[string]interface{},
+) (ConditionQuery, error) {
 	e := util.StringError("compile condition map query")
 
 	var query, countString string
@@ -320,8 +325,10 @@ func (w *WatchLogs) compileMapConditionQuery(s map[string]interface{}, vars *Var
 		}
 	}
 
+	vars.Set(".self.range", rangeValue)
+
 	if count == nil {
-		return w.compileStringConditionQuery(query, vars)
+		return w.compileStringConditionQuery(query, vars, rangeValue)
 	}
 
 	c, err := CompileTemplate(query, vars, nil)
@@ -334,17 +341,8 @@ func (w *WatchLogs) compileMapConditionQuery(s map[string]interface{}, vars *Var
 		return nil, errors.WithMessagef(err, "unmarshal query, %q", c)
 	}
 
-	var rangevalue map[string]interface{}
-
-	switch i, found := vars.Value(".self.range"); {
-	case !found:
-		rangevalue = map[string]interface{}{}
-	default:
-		rangevalue = i.(map[string]interface{}) //nolint:forcetypeassert //...
-	}
-
-	for k := range rangevalue {
-		m[k] = rangevalue[k]
+	for k := range rangeValue {
+		m[k] = rangeValue[k]
 	}
 
 	return MongodbCountConditionQuery{

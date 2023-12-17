@@ -174,12 +174,17 @@ func getVar(v interface{}, keys string) (interface{}, bool) {
 	ks := strings.Split(keys, ".")[1:]
 
 	m := v
+
 	for _, k := range ks {
-		if i, ok := m.(map[string]interface{}); !ok {
+		switch i, ok := m.(map[string]interface{}); {
+		case !ok:
 			return nil, false
-		} else if j, found := i[k]; !found {
-			return nil, false
-		} else {
+		default:
+			j, found := i[k]
+			if !found {
+				return nil, false
+			}
+
 			m = j
 		}
 	}
