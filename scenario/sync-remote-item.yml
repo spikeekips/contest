@@ -250,6 +250,31 @@ expects:
     range:
       - node: [no0, no1, no2]
 
+  - log: "network client block-item-files"
+  - condition: |
+      $ out="{{ .self.host.Base }}/out/{{ .self.range.node }}"
+        for i in 0 1 2 3
+        do
+          {{ hostFile .self.host "cmd" }} network client block-item-files \
+              --log.format=json \
+              --log.level=trace \
+              "{{ .network_id }}" "{{ .self.network.publish }}#tls_insecure" "{{ .self.privatekey }}" \
+              $i \
+              $out \
+              --download-all-items \
+              --download-remote-item || exit 1
+
+          diff -uNr "{{ .self.host.Base }}/{{ .self.range.node }}"/data/000/000/000/000/000/000/$i.json \
+            $out/000/000/000/000/000/000/$i.json || exit 1
+          diff -uNr "{{ .self.host.Base }}/remote/{{ .self.range.node }}"/$i \
+            $out/000/000/000/000/000/000/00$i || exit 1
+        done
+
+        find $out
+    if_condition_failed: "stop-contest"
+    range:
+      - node: [no0, no1, no2]
+
   - log: start no3
   - condition: |
       {}

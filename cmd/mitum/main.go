@@ -85,11 +85,7 @@ func main() {
 	default:
 		pctx = i
 
-		kctx = kong.Parse(
-			&CLI,
-			kong.BindTo(pctx, (*context.Context)(nil)),
-			flagDefaults,
-		)
+		kctx.BindTo(pctx, (*context.Context)(nil))
 	}
 
 	var log *logging.Logging
@@ -103,7 +99,7 @@ func main() {
 	if err := func() error {
 		defer log.Log().Debug().Msg("stopped")
 
-		return errors.WithStack(kctx.Run(pctx))
+		return errors.WithStack(kctx.Run(kctx, pctx))
 	}(); err != nil {
 		log.Log().Error().Err(err).Msg("stopped by error")
 
