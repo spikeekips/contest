@@ -36,9 +36,9 @@ func (s Design) IsValid(b []byte) error {
 		}
 	}
 
-	if _, found := util.IsDuplicatedSlice(s.Nodes.SameHost, func(i string) (bool, string) {
+	if util.IsDuplicatedSlice(s.Nodes.SameHost, func(i string) (bool, string) {
 		return true, i //nolint:forcetypeassert //...
-	}); found {
+	}) {
 		return e.Errorf("duplicated nodes found")
 	}
 
