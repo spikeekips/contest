@@ -92,7 +92,7 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 	pctx = context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
 	pctx = context.WithValue(pctx, launch.DevFlagsContextKey, cmd.DevFlags)
 	pctx = context.WithValue(pctx, launch.DiscoveryFlagContextKey, cmd.Discovery)
-	pctx = context.WithValue(pctx, launch.PrivatekeyFlagsContextKey, cmd.PrivatekeyFlags)
+	pctx = context.WithValue(pctx, launch.PrivatekeyContextKey, string(cmd.PrivatekeyFlags.Flag.Body()))
 	pctx = context.WithValue(pctx, launch.ACLFlagsContextKey, cmd.ACLFlags)
 	//revive:enable:modifies-parameter
 

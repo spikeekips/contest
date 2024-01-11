@@ -41,6 +41,7 @@ var CLI struct { //nolint:govet //...
 		Sign launchcmd.KeySignCommand `cmd:"" help:"sign"`
 	} `cmd:"" help:"key"`
 	Handover launchcmd.HandoverCommands `cmd:""`
+	Dev      launchcmd.DevCommands      `cmd:""`
 	Version  struct{}                   `cmd:"" help:"version"`
 	//revive:enable:nested-structs
 }
