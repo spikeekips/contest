@@ -165,7 +165,7 @@ expects:
       - node: [no0, no1, no2, no3]
 
   - condition: |
-      {"x.height": 2, "x.message": "new block saved"}
+      {"_id": {"$gt": "{{ .matched.consensus._id}}" }, "x.message": "new block saved"}
     range:
       - node: [no0, no1, no2, no3]
     registers:
@@ -183,17 +183,21 @@ expects:
     if_condition_failed: "stop-contest"
 
   - condition: |
-      {"_id": {"$gt": "{{ .matched.consensus._id}}" }, "x.message": "state switched", "x.current_state": "CONSENSUS", "x.next_state.next": "SYNCING"}
+      {"_id": {"$gt": "{{ .matched.new_block._id}}" }, "x.message": "state switched", "x.current_state": "CONSENSUS", "x.next_state.next": "SYNCING"}
     registers:
       - assign: .matched.no3_syncing
     range:
       - node: [no3]
 
+  - log: check no3 left from no3
+  - condition: |
+      {"_id": {"$gt": "{{ .matched.new_block._id }}" }, "x.member.meta.address": "{{ .nodes.no3.address }}", "x.member.meta.publickey": "{{ .nodes.no3.publickey }}", "x.message": "member left"}
+    range:
+      - node: [no3]
+
   - log: check no3 left
   - condition: |
-      {"_id": {"$gt": "{{ .matched.consensus._id }}" }, "x.member.meta.address": "{{ .nodes.no3.address }}", "x.member.meta.publickey": "{{ .nodes.no3.publickey }}", "x.message": "member left"}
-    range:
-      - node: [no0, no1, no2, no3]
+      {"_id": {"$gt": "{{ .matched.new_block._id }}" }, "node": {"$in": ["no0", "no1", "no2"]}, "x.member.meta.address": "{{ .nodes.no3.address }}", "x.member.meta.publickey": "{{ .nodes.no3.publickey }}", "x.message": "member left"}
 
   - condition: |
       {"x.height": {"$gte": {{ addInt .matched.new_block.x.height 9 }} }, "x.message": "new block saved"}
