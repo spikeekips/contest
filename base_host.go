@@ -107,10 +107,10 @@ func (h *baseHost) cleanContainers(remove bool) error { //revive:disable-line:fl
 		return nil
 	}
 
-	if err := util.RunErrgroupWorker(
+	if err := util.RunJobWorker(
 		context.Background(),
 		n, n,
-		func(ctx context.Context, i, _ uint64) error {
+		func(_ context.Context, i, _ uint64) error {
 			cid := cids[i]
 
 			timeout := int(defaultContainerStopTimeout.Seconds())

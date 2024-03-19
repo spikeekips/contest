@@ -369,6 +369,7 @@ func CompileTemplate(s string, vars *Vars, extra map[string]interface{}) (string
 		if strings.Contains(l, "<no value>") {
 			return "", errors.Errorf("some variables are not replaced in template string, %q(line: %d)", l, ln)
 		}
+
 		ln++
 	}
 

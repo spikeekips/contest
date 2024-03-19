@@ -88,7 +88,7 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 		}
 	case "host-command":
 		if err := cmd.rangeNodes(ctx, action,
-			func(ctx context.Context, host contest.Host, alias string, args []string, _ map[string]interface{}) error {
+			func(_ context.Context, host contest.Host, alias string, args []string, _ map[string]interface{}) error {
 				cmd, err := contest.LoadHostCommandArgs(args)
 				if err != nil {
 					return errors.WithStack(err)
@@ -141,8 +141,8 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 			func(
 				ctx context.Context,
 				host contest.Host,
-				alias string,
-				args []string,
+				_ string,
+				_ []string,
 				properties map[string]interface{},
 			) error {
 				if _, found := hosts[host.HostID()]; found {
