@@ -4,20 +4,19 @@ import (
 	"context"
 	"debug/elf"
 	"fmt"
+	"log/slog"
 	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/FerretDB/FerretDB/ferretdb"
 	dockerClient "github.com/docker/docker/client"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/contest"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
-	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
@@ -535,31 +534,20 @@ func (*runCommand) checkImages(client *dockerClient.Client, images ...string) er
 }
 
 func (cmd *runCommand) ferretDB(ctx context.Context) error {
-	var loggerf func(...zap.Option) (*zap.Logger, error)
-
-	config := zap.NewProductionConfig()
+	var level slog.Level
 
 	switch mlogging.Log().GetLevel() {
 	case zerolog.TraceLevel:
-		config.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
-
-		loggerf = config.Build
-	case zerolog.DebugLevel:
-		config.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
-
-		loggerf = config.Build
+		level = slog.LevelDebug
 	default:
-		loggerf = func(...zap.Option) (*zap.Logger, error) {
-			return zap.NewNop(), nil
-		}
+		level = slog.LevelInfo
 	}
 
-	l, err := loggerf()
-	if err != nil {
-		return errors.WithStack(err)
-	}
+	hlevel := new(slog.LevelVar)
+	hlevel.Set(level)
 
-	ferretdb.SetupLogger(l)
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: hlevel})).
+		With(slog.String("module", "ferretdb"))
 
 	// FIXME address.Address of go.mongodb.org/mongo-driver/mongo can not handle
 	// uppercase unix socket name.
@@ -571,5 +559,5 @@ func (cmd *runCommand) ferretDB(ctx context.Context) error {
 		return errors.WithStack(err)
 	}
 
-	return contest.RunFerretDB(ctx, sock, db)
+	return contest.RunFerretDB(ctx, sock, db, logger)
 }

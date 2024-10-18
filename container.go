@@ -4,22 +4,22 @@ import (
 	"context"
 	"io"
 
-	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
 	dockerClient "github.com/docker/docker/client"
 	"github.com/pkg/errors"
 )
 
 var ContainerLabel = "mitum-contest"
 
-func ExistsImage(client *dockerClient.Client, image string) (bool, error) {
+func ExistsImage(client *dockerClient.Client, img string) (bool, error) {
 	i, err := client.ImageList(
 		context.Background(),
-		dockerTypes.ImageListOptions{
+		image.ListOptions{
 			All: true,
 			Filters: filters.NewArgs(filters.KeyValuePair{
 				Key:   "reference",
-				Value: image,
+				Value: img,
 			}),
 		},
 	)
@@ -30,11 +30,11 @@ func ExistsImage(client *dockerClient.Client, image string) (bool, error) {
 	return len(i) > 0, nil
 }
 
-func PullImage(client *dockerClient.Client, image string) error {
+func PullImage(client *dockerClient.Client, img string) error {
 	r, err := client.ImagePull(
 		context.Background(),
-		image,
-		dockerTypes.ImagePullOptions{},
+		img,
+		image.PullOptions{},
 	)
 	if err != nil {
 		return errors.WithStack(err)

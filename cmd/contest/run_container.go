@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	dockerMount "github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/strslice"
@@ -49,7 +48,7 @@ func (*runCommand) startRedisContainer(
 
 	name := containerName("redis")
 
-	if err := h.RemoveContainer(ctx, name, dockerTypes.ContainerRemoveOptions{
+	if err := h.RemoveContainer(ctx, name, container.RemoveOptions{
 		RemoveVolumes: true,
 		Force:         true,
 	}); err != nil {
@@ -138,7 +137,7 @@ func (*runCommand) startNginxContainer(
 
 	cname := containerName(id)
 
-	if err := h.RemoveContainer(ctx, cname, dockerTypes.ContainerRemoveOptions{
+	if err := h.RemoveContainer(ctx, cname, container.RemoveOptions{
 		RemoveVolumes: true,
 		Force:         true,
 	}); err != nil {
@@ -259,7 +258,7 @@ func (cmd *runCommand) doRunNode( //revive:disable-line:cyclomatic
 
 	name := containerName(alias)
 
-	if err := host.RemoveContainer(ctx, name, dockerTypes.ContainerRemoveOptions{
+	if err := host.RemoveContainer(ctx, name, container.RemoveOptions{
 		RemoveVolumes: true,
 		Force:         true,
 	}); err != nil {

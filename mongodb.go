@@ -3,6 +3,7 @@ package contest
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/FerretDB/FerretDB/ferretdb"
 	"github.com/pkg/errors"
@@ -30,8 +31,9 @@ var logEntryIndexModel = []mongo.IndexModel{
 	},
 }
 
-func RunFerretDB(ctx context.Context, sock, db string) error {
+func RunFerretDB(ctx context.Context, sock, db string, logger *slog.Logger) error {
 	f, err := ferretdb.New(&ferretdb.Config{
+		Logger: logger,
 		Listener: ferretdb.ListenerConfig{
 			Unix: sock,
 		},
@@ -72,7 +74,7 @@ func NewMongodbFromURI(ctx context.Context, uri string) (*Mongodb, error) {
 	return db, nil
 }
 
-func (db *Mongodb) connect(ctx context.Context, cs connstring.ConnString) error {
+func (db *Mongodb) connect(ctx context.Context, cs *connstring.ConnString) error {
 	clientOpts := options.Client().ApplyURI(cs.String())
 	if err := clientOpts.Validate(); err != nil {
 		return errors.WithStack(err)

@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	dockerNetwork "github.com/docker/docker/api/types/network"
 	dockerClient "github.com/docker/docker/client"
@@ -62,8 +61,8 @@ type Host interface { //nolint:interfacebloat //...
 		whenExit func(container.WaitResponse, error),
 	) error
 	StopContainer(_ context.Context, containerName string, _ *time.Duration) error
-	RemoveContainer(_ context.Context, containerName string, _ dockerTypes.ContainerRemoveOptions) error
-	ContainerLogs(_ context.Context, containerName string, _ dockerTypes.ContainerLogsOptions) (io.ReadCloser, error)
+	RemoveContainer(_ context.Context, containerName string, _ container.RemoveOptions) error
+	ContainerLogs(_ context.Context, containerName string, _ container.LogsOptions) (io.ReadCloser, error)
 	FreePort(id, network string) (string, error)
 	RunCommand(string) (string, string, bool, error)
 }

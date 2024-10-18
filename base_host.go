@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	dockerClient "github.com/docker/docker/client"
@@ -84,7 +83,7 @@ func (h *baseHost) Close() error {
 func (h *baseHost) cleanContainers(remove bool) error { //revive:disable-line:flag-parameter
 	e := util.StringError("clean containers")
 
-	l, err := h.client.ContainerList(context.Background(), dockerTypes.ContainerListOptions{All: true})
+	l, err := h.client.ContainerList(context.Background(), container.ListOptions{All: true})
 	if err != nil {
 		return e.Wrap(err)
 	}
@@ -119,7 +118,7 @@ func (h *baseHost) cleanContainers(remove bool) error { //revive:disable-line:fl
 			_ = h.client.ContainerStop(context.Background(), cid, container.StopOptions{Timeout: &timeout})
 
 			if remove {
-				_ = h.client.ContainerRemove(context.Background(), cid, dockerTypes.ContainerRemoveOptions{
+				_ = h.client.ContainerRemove(context.Background(), cid, container.RemoveOptions{
 					RemoveVolumes: true, Force: true,
 				})
 			}
@@ -167,7 +166,7 @@ func (h *baseHost) ExistsContainer(ctx context.Context, name string) (cid, info 
 		return cid, info, false, nil
 	}
 
-	l, err := h.client.ContainerList(ctx, dockerTypes.ContainerListOptions{All: true})
+	l, err := h.client.ContainerList(ctx, container.ListOptions{All: true})
 	if err != nil {
 		return cid, info, false, errors.WithStack(err)
 	}
@@ -245,7 +244,7 @@ func (h *baseHost) StartContainer(
 		return e.Wrap(err)
 	}
 
-	if err := h.client.ContainerStart(ctx, cid, dockerTypes.ContainerStartOptions{}); err != nil {
+	if err := h.client.ContainerStart(ctx, cid, container.StartOptions{}); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -297,7 +296,7 @@ func (h *baseHost) StopContainer(ctx context.Context, name string, timeout *time
 	return nil
 }
 
-func (h *baseHost) RemoveContainer(ctx context.Context, name string, options dockerTypes.ContainerRemoveOptions) error {
+func (h *baseHost) RemoveContainer(ctx context.Context, name string, options container.RemoveOptions) error {
 	e := util.StringError("remove container")
 
 	if _, err := h.containers.Remove(name, func(i string, found bool) error {
@@ -320,7 +319,7 @@ func (h *baseHost) RemoveContainer(ctx context.Context, name string, options doc
 func (h *baseHost) ContainerLogs(
 	ctx context.Context,
 	name string,
-	options dockerTypes.ContainerLogsOptions,
+	options container.LogsOptions,
 ) (io.ReadCloser, error) {
 	e := util.StringError("failed container logs")
 

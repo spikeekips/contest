@@ -8,7 +8,7 @@ import (
 	"slices"
 	"sync"
 
-	dockerTypes "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	dockerstdcopy "github.com/docker/docker/pkg/stdcopy"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/contest"
@@ -78,7 +78,7 @@ func (cmd *runCommand) saveContainerLogs(ctx context.Context, alias string) erro
 		return err
 	}
 
-	r, err := host.ContainerLogs(ctx, name, dockerTypes.ContainerLogsOptions{
+	r, err := host.ContainerLogs(ctx, name, container.LogsOptions{
 		ShowStdout: true, ShowStderr: true,
 		Follow: true, Tail: "all",
 	})
