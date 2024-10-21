@@ -40,7 +40,7 @@ func NewWatchLogs(
 	actionFunc func(context.Context, ScenarioAction) error,
 	insertLogEntriesFunc func(context.Context, []LogEntry) error,
 ) *WatchLogs {
-	ucheckInterval := time.Millisecond * 300 //nolint:gomnd //...
+	ucheckInterval := time.Millisecond * 300 //nolint:mnd //...
 	if checkInterval != nil {
 		ucheckInterval = *checkInterval
 	}
@@ -82,7 +82,7 @@ func (w *WatchLogs) start(ctx context.Context, savelogch chan LogEntry) error {
 		w.Log().Debug().Stringer("query", queries[0]).Msg("querying")
 	}
 
-	if len(active.Log) > 0 {
+	if active.Log != "" {
 		w.expectLog(active.Log)
 	}
 
@@ -111,7 +111,7 @@ end:
 				return err
 			}
 
-			if len(active.Log) > 0 {
+			if active.Log != "" {
 				w.expectLog(active.Log)
 			}
 
@@ -155,7 +155,7 @@ func (w *WatchLogs) newactive() (newactive ExpectScenario, queries []ConditionQu
 		return active, nil, err
 	}
 
-	if len(active.Log) > 0 {
+	if active.Log != "" {
 		w.actives = left
 
 		return active, nil, nil
@@ -356,7 +356,7 @@ func (w *WatchLogs) compileMapConditionQuery(
 func (w *WatchLogs) evaluate(
 	ctx context.Context, expect ExpectScenario, queries []ConditionQuery,
 ) (left []ConditionQuery, ok bool, _ error) {
-	if len(expect.Log) > 0 {
+	if expect.Log != "" {
 		return nil, true, nil
 	}
 
@@ -476,7 +476,7 @@ end:
 
 			entries = append(entries, e)
 
-			if len(entries) > 33 { //nolint:gomnd //...
+			if len(entries) > 33 { //nolint:mnd //...
 				save()
 			}
 		case <-ticker.C:
@@ -560,7 +560,7 @@ func (c HostCommandConditionQuery) String() string {
 func (c HostCommandConditionQuery) Find(context.Context) (out interface{}, ok bool, _ error) {
 	stdout, stderr, ok, err := c.host.RunCommand(c.cmd)
 	if err != nil {
-		return nil, false, err
+		return nil, false, err //nolint:wrapcheck //...
 	}
 
 	outstring := strings.TrimRight(stdout, "\n")

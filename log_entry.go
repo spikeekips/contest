@@ -128,7 +128,7 @@ func (e NodeLogEntry) MarshalBSON() ([]byte, error) {
 	return b, errors.WithStack(err)
 }
 
-var reNestedArrayStart = regexp.MustCompile(`\[[\s]*\[`)
+var reNestedArrayStart = regexp.MustCompile(`\[\s*\[`)
 
 func bsonStripNestedArray(b []byte) (bson.Raw, error) {
 	i, err := stripNestedArray(b)

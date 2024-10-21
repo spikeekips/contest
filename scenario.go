@@ -150,7 +150,7 @@ type ExpectScenario struct {
 func (s ExpectScenario) IsValid(b []byte) error {
 	e := util.StringError("invalid ExpectScenario")
 
-	if len(s.Log) > 0 {
+	if s.Log != "" {
 		return nil
 	}
 

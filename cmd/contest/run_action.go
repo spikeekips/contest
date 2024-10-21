@@ -8,7 +8,8 @@ import (
 	"github.com/spikeekips/contest"
 )
 
-func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction) error {
+//revive:disable
+func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction) error { //nolint:gocognit //...
 	mergeNodeArgs := func(args []string) ([]string, []string) {
 		var nodeArgs []string
 
@@ -123,7 +124,7 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 				}
 
 				if body.Error != nil {
-					cmd.exitch <- errors.Errorf(body.Error.Message)
+					cmd.exitch <- errors.New(body.Error.Message)
 				}
 			}); err != nil {
 				return false, err
@@ -159,7 +160,7 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 					}
 
 					if body.Error != nil {
-						cmd.exitch <- errors.Errorf(body.Error.Message)
+						cmd.exitch <- errors.New(body.Error.Message)
 					}
 				})
 			},
@@ -169,4 +170,5 @@ func (cmd *runCommand) action(ctx context.Context, action contest.ScenarioAction
 	}
 
 	return nil
+	//revive:enable
 }

@@ -40,7 +40,7 @@ type RemoteHost struct {
 	savedsshconn ssh.Conn
 	*baseHost
 	savedsshclient *ssh.Client
-	sync.Mutex
+	l              sync.Mutex
 }
 
 func NewRemoteHost(base string, dockerhost *url.URL) (*RemoteHost, error) {
@@ -113,7 +113,7 @@ func (h *RemoteHost) Upload(s io.Reader, name, dest string, mode os.FileMode) er
 		}
 
 		return false, nil
-	}, 3, time.Second); err != nil { //nolint:gomnd //...
+	}, 3, time.Second); err != nil { //nolint:mnd //...
 		return e.Wrap(err)
 	}
 
@@ -185,7 +185,7 @@ func (h *RemoteHost) CollectResult(outputfile string) error {
 
 	session.Stdout = out
 
-	if err := session.Run(fmt.Sprintf(`cd "%s" && tar zcf - .`, h.base)); err != nil {
+	if err := session.Run(fmt.Sprintf(`cd %q && tar zcf - .`, h.base)); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -231,7 +231,7 @@ func (h *RemoteHost) LocalAddr() (addr netip.Addr, _ error) {
 	}
 
 	l := strings.SplitN(out, " ", 2)
-	if len(l) != 2 { //nolint:gomnd //...
+	if len(l) != 2 { //nolint:mnd //...
 		return addr, e.Errorf("invalid output")
 	}
 
@@ -299,8 +299,8 @@ func (h *RemoteHost) checkBase() error {
 }
 
 func (h *RemoteHost) sshClient() (*ssh.Client, error) {
-	h.Lock()
-	defer h.Unlock()
+	h.l.Lock()
+	defer h.l.Unlock()
 
 	if h.savedsshclient != nil {
 		return h.savedsshclient, nil
@@ -335,7 +335,7 @@ func (h *RemoteHost) newSSHClient() (*ssh.Client, error) {
 
 	addr := h.Hostname() + ":22"
 
-	netconn, err := net.DialTimeout("tcp", addr, time.Second*10) //nolint:gomnd //...
+	netconn, err := net.DialTimeout("tcp", addr, time.Second*10) //nolint:mnd //...
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -359,7 +359,7 @@ func (h *RemoteHost) sshSession() (*ssh.Session, error) {
 		return nil, e.Wrap(err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3) //nolint:gomnd //...
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3) //nolint:mnd //...
 	defer cancel()
 
 	var session *ssh.Session
@@ -373,8 +373,8 @@ func (h *RemoteHost) sshSession() (*ssh.Session, error) {
 			return false, nil
 		case errors.As(err, &ssherr):
 			client, err = func() (*ssh.Client, error) {
-				h.Lock()
-				defer h.Unlock()
+				h.l.Lock()
+				defer h.l.Unlock()
 
 				_ = h.savedsshconn.Close()
 
@@ -385,7 +385,7 @@ func (h *RemoteHost) sshSession() (*ssh.Session, error) {
 		default:
 			return true, err
 		}
-	}, -1, time.Millisecond*600); err != nil { //nolint:gomnd //...
+	}, -1, time.Millisecond*600); err != nil { //nolint:mnd //...
 		return nil, e.Wrap(err)
 	}
 
@@ -434,7 +434,7 @@ func (h *RemoteHost) remoteFreePort(network string, _ nat.PortMap) (string, erro
 	}
 }
 
-func (h *RemoteHost) RunCommand(cmd string) (stdout string, stderr string, ok bool, err error) {
+func (h *RemoteHost) RunCommand(cmd string) (stdout, stderr string, ok bool, err error) {
 	var e *exec.ExitError
 
 	switch stdout, stderr, err = h.runCommand(cmd); {
@@ -447,7 +447,7 @@ func (h *RemoteHost) RunCommand(cmd string) (stdout string, stderr string, ok bo
 	}
 }
 
-func (h *RemoteHost) runCommand(cmd string) (stdout string, stderr string, _ error) {
+func (h *RemoteHost) runCommand(cmd string) (stdout, stderr string, _ error) {
 	session, err := h.sshSession()
 	if err != nil {
 		return "", "", err

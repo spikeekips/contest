@@ -99,8 +99,8 @@ func LoadHostCommandArgs(args []string) (string, error) {
 		}
 
 		switch {
-		case strings.Contains(" ", a):
-			cmd += `'` + strings.Replace(a, "'", "\\'", -1) + `'`
+		case strings.Contains(a, " "):
+			cmd += `'` + strings.ReplaceAll(a, "'", "\\'") + `'`
 		default:
 			cmd += a
 		}

@@ -18,8 +18,8 @@ import (
 )
 
 var (
-	reFilterSymbol = regexp.MustCompile(`[\-\_\.]`)
-	reFilterBlank  = regexp.MustCompile(`[\s][\s]*`)
+	reFilterSymbol = regexp.MustCompile(`[\-\_.]`)
+	reFilterBlank  = regexp.MustCompile(`\s+`)
 )
 
 var TranslateWords = map[string]string{
@@ -32,7 +32,7 @@ var TranslateWords = map[string]string{
 type Vars struct {
 	m       map[string]interface{}
 	funcMap template.FuncMap
-	sync.RWMutex
+	l       sync.RWMutex
 }
 
 func NewVars(m map[string]interface{}) *Vars {
@@ -52,8 +52,8 @@ func NewVars(m map[string]interface{}) *Vars {
 
 func (vs *Vars) Clone(m map[string]interface{}) *Vars {
 	vars := func() *Vars {
-		vs.RLock()
-		defer vs.RUnlock()
+		vs.l.RLock()
+		defer vs.l.RUnlock()
 
 		nvars := NewVars(copyValue(reflect.ValueOf(vs.m)). //nolint:forcetypeassert //...
 									Interface().(map[string]interface{}))
@@ -70,8 +70,8 @@ func (vs *Vars) Clone(m map[string]interface{}) *Vars {
 }
 
 func (vs *Vars) FuncMap() template.FuncMap {
-	vs.RLock()
-	defer vs.RUnlock()
+	vs.l.RLock()
+	defer vs.l.RUnlock()
 
 	m := template.FuncMap{}
 	for k := range vs.funcMap {
@@ -87,8 +87,8 @@ func (vs *Vars) FuncMap() template.FuncMap {
 }
 
 func (vs *Vars) AddFunc(name string, f interface{}) *Vars {
-	vs.Lock()
-	defer vs.Unlock()
+	vs.l.Lock()
+	defer vs.l.Unlock()
 
 	vs.funcMap[name] = f
 
@@ -96,15 +96,15 @@ func (vs *Vars) AddFunc(name string, f interface{}) *Vars {
 }
 
 func (vs *Vars) Map() map[string]interface{} {
-	vs.RLock()
-	defer vs.RUnlock()
+	vs.l.RLock()
+	defer vs.l.RUnlock()
 
 	return vs.m
 }
 
 func (vs *Vars) Exists(keys string) bool {
-	vs.RLock()
-	defer vs.RUnlock()
+	vs.l.RLock()
+	defer vs.l.RUnlock()
 
 	_, found := getVar(vs.m, keys)
 
@@ -112,15 +112,15 @@ func (vs *Vars) Exists(keys string) bool {
 }
 
 func (vs *Vars) Value(keys string) (interface{}, bool) {
-	vs.RLock()
-	defer vs.RUnlock()
+	vs.l.RLock()
+	defer vs.l.RUnlock()
 
 	return getVar(vs.m, keys)
 }
 
 func (vs *Vars) Set(keys string, value interface{}) {
-	vs.Lock()
-	defer vs.Unlock()
+	vs.l.Lock()
+	defer vs.l.Unlock()
 
 	err := setVar(vs.m, keys, value)
 	if err != nil {
@@ -129,8 +129,8 @@ func (vs *Vars) Set(keys string, value interface{}) {
 }
 
 func (vs *Vars) Rename(keys, newkeys string) {
-	vs.Lock()
-	defer vs.Unlock()
+	vs.l.Lock()
+	defer vs.l.Unlock()
 
 	err := renameVar(vs.m, keys, newkeys)
 	if err != nil {
@@ -259,24 +259,24 @@ func renameVar(m map[string]interface{}, keys, newkey string) error {
 func (vs *Vars) baseFuncMap() template.FuncMap {
 	return template.FuncMap{
 		"existsVar": func(keys string) interface{} {
-			vs.RLock()
-			defer vs.RUnlock()
+			vs.l.RLock()
+			defer vs.l.RUnlock()
 
 			_, found := getVar(vs.m, keys)
 
 			return found
 		},
 		"getVar": func(keys string) interface{} {
-			vs.RLock()
-			defer vs.RUnlock()
+			vs.l.RLock()
+			defer vs.l.RUnlock()
 
 			i, _ := getVar(vs.m, keys)
 
 			return i
 		},
 		"getOrCreateVar": func(keys string, value interface{}) interface{} {
-			vs.Lock()
-			defer vs.Unlock()
+			vs.l.Lock()
+			defer vs.l.Unlock()
 
 			if i, found := getVar(vs.m, keys); found {
 				return i
@@ -287,16 +287,16 @@ func (vs *Vars) baseFuncMap() template.FuncMap {
 			return value
 		},
 		"setVar": func(keys string, value interface{}) string {
-			vs.Lock()
-			defer vs.Unlock()
+			vs.l.Lock()
+			defer vs.l.Unlock()
 
 			_ = setVar(vs.m, keys, value)
 
 			return ""
 		},
 		"setgetVar": func(keys string, value interface{}) interface{} {
-			vs.Lock()
-			defer vs.Unlock()
+			vs.l.Lock()
+			defer vs.l.Unlock()
 
 			_ = setVar(vs.m, keys, value)
 

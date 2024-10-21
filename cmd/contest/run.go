@@ -53,10 +53,10 @@ func (cmd *runCommand) Run() error {
 	started := time.Now()
 
 	defer func() {
-		timeout := time.Second * 30 //nolint:gomnd //...
+		timeout := time.Second * 30 //nolint:mnd //...
 
 		if cmd.Timeout > 0 {
-			d := cmd.Timeout - time.Since(started) - (time.Second * 5) //nolint:gomnd //...
+			d := cmd.Timeout - time.Since(started) - (time.Second * 5) //nolint:mnd //...
 			if d < 1 {
 				return
 			}
@@ -154,7 +154,7 @@ func (cmd *runCommand) closeHosts(ctx context.Context) error {
 		return nil
 	case cmd.hosts.Len() == 1:
 		if err := cmd.hosts.Close(); err != nil {
-			return err
+			return err //nolint:wrapcheck //...
 		}
 	}
 

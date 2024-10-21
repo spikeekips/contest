@@ -14,7 +14,7 @@ type Hosts struct {
 	samehost         []string
 	hostids          []string
 	lastused         int
-	sync.Mutex
+	l                sync.Mutex
 }
 
 func NewHosts(samehost []string) *Hosts {
@@ -103,8 +103,8 @@ func (h *Hosts) TraverseByHost(f func(_ Host, cids []string) (bool, error)) erro
 }
 
 func (h *Hosts) assignHost(cid string) Host {
-	h.Lock()
-	defer h.Unlock()
+	h.l.Lock()
+	defer h.l.Unlock()
 
 	if len(h.hostids) < 1 {
 		return nil

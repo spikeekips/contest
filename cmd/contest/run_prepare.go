@@ -549,8 +549,8 @@ func (cmd *runCommand) ferretDB(ctx context.Context) error {
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: hlevel})).
 		With(slog.String("module", "ferretdb"))
 
-	// FIXME address.Address of go.mongodb.org/mongo-driver/mongo can not handle
-	// uppercase unix socket name.
+	//nolint:godox // FIXME address.Address of go.mongodb.org/mongo-driver/mongo
+	// can not handle uppercase unix socket name.
 	sock := filepath.Join(cmd.basedir, fmt.Sprintf("%s.sock", strings.ToLower(contestID)))
 	cmd.mongodb = fmt.Sprintf("mongodb://%s/contest", url.QueryEscape(sock))
 
@@ -559,5 +559,5 @@ func (cmd *runCommand) ferretDB(ctx context.Context) error {
 		return errors.WithStack(err)
 	}
 
-	return contest.RunFerretDB(ctx, sock, db, logger)
+	return contest.RunFerretDB(ctx, sock, db, logger) //nolint:wrapcheck //...
 }

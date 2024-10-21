@@ -110,7 +110,7 @@ func (*runCommand) startNginxContainer(
 
 	switch found, err := contest.ScenarioActionProperty(properties, "name", &id); {
 	case err != nil:
-		return err
+		return err //nolint:wrapcheck //...
 	case !found:
 		return errors.Errorf("name not found")
 	}
@@ -119,7 +119,7 @@ func (*runCommand) startNginxContainer(
 
 	switch found, err := contest.ScenarioActionProperty(properties, "root", &root); {
 	case err != nil:
-		return err
+		return err //nolint:wrapcheck //...
 	case !found:
 		return errors.Errorf("root not found")
 	}
@@ -128,7 +128,7 @@ func (*runCommand) startNginxContainer(
 
 	switch found, err := contest.ScenarioActionProperty(properties, "port", &port); {
 	case err != nil:
-		return err
+		return err //nolint:wrapcheck //...
 	case !found:
 		port = strings.TrimSpace(port)
 
@@ -146,14 +146,14 @@ func (*runCommand) startNginxContainer(
 		}
 	}
 
-	confb := bytes.NewBuffer([]byte(strings.Replace(nginxConf, "@@port@@", port, -1)))
+	confb := bytes.NewBuffer([]byte(strings.ReplaceAll(nginxConf, "@@port@@", port)))
 	confname := id + "-nginx.conf"
 
 	var hostconfname string
 
 	switch err := h.Upload(confb, confname, confname, 0o600); {
 	case err != nil:
-		return err
+		return err //nolint:wrapcheck //...
 	default:
 		i, found := h.File(confname)
 		if !found {
@@ -207,7 +207,7 @@ func (cmd *runCommand) runNode(
 ) error {
 	port, err := host.FreePort(fmt.Sprintf("debug-http-port-%s", alias), "tcp")
 	if err != nil {
-		return err
+		return err //nolint:wrapcheck //...
 	}
 
 	args = append(args, //revive:disable-line:modifies-parameter
@@ -336,7 +336,7 @@ func (cmd *runCommand) doRunNode( //revive:disable-line:cyclomatic
 			var bodyerr error
 
 			if body.Error != nil {
-				bodyerr = errors.Errorf(body.Error.Message)
+				bodyerr = errors.New(body.Error.Message)
 			}
 
 			entry, err := contest.NewNodeLogEntryWithInterface(alias, true, bson.M{
@@ -547,7 +547,7 @@ func collectPprof(ctx context.Context, info nodeInfo, seconds uint) (io.ReadClos
 		seconds,
 	)
 
-	req, err := http.NewRequest(http.MethodGet, u, nil)
+	req, err := http.NewRequest(http.MethodGet, u, http.NoBody)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

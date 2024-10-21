@@ -145,7 +145,7 @@ func (h *baseHost) Hostname() string {
 }
 
 func (h *baseHost) PublishHost() string {
-	if len(h.publishhost) > 0 {
+	if h.publishhost != "" {
 		return h.publishhost
 	}
 
@@ -376,7 +376,7 @@ func (h *baseHost) freePort(
 	}
 }
 
-func (h *baseHost) addFile(name string, path string) {
+func (h *baseHost) addFile(name, path string) {
 	h.files[name] = path
 }
 

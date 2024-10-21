@@ -69,9 +69,7 @@ func NewLocalHost(base string, dockerhost *url.URL) (*LocalHost, error) {
 }
 
 func (h *LocalHost) FreePort(id, network string) (string, error) {
-	return h.baseHost.freePort(id, network, func(network string) (string, error) {
-		return AvailablePort(network)
-	})
+	return h.baseHost.freePort(id, network, AvailablePort)
 }
 
 func (h *LocalHost) Upload(s io.Reader, name, dest string, mode os.FileMode) error {
@@ -177,7 +175,7 @@ func (h *LocalHost) Mkdir(dest string, mode os.FileMode) error {
 	return nil
 }
 
-func (h *LocalHost) RunCommand(cmd string) (stdout string, stderr string, ok bool, err error) {
+func (h *LocalHost) RunCommand(cmd string) (stdout, stderr string, ok bool, err error) {
 	var e *exec.ExitError
 
 	switch stdout, stderr, err = h.runCommand(cmd); {
@@ -208,7 +206,7 @@ func (h *LocalHost) checkArch() error {
 	return nil
 }
 
-func (h *LocalHost) runCommand(s string) (stdout string, stderr string, _ error) {
+func (h *LocalHost) runCommand(s string) (stdout, stderr string, _ error) {
 	var bstdout, bstderr bytes.Buffer
 
 	cmd := exec.Command("bash", "-c", s)
